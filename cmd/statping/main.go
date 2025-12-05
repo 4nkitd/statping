@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"text/template"
 
 	"github.com/ankityadav/statping/internal/checker"
 	"github.com/ankityadav/statping/internal/config"
@@ -68,6 +71,24 @@ var trayCmd = &cobra.Command{
 	Run:   runTray,
 }
 
+var enableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable auto-start on login (registers LaunchAgent)",
+	Run:   runEnable,
+}
+
+var disableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable auto-start on login (removes LaunchAgent)",
+	Run:   runDisable,
+}
+
+var statusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Check if auto-start is enabled",
+	Run:   runStatus,
+}
+
 var (
 	addName          string
 	addInterval      int
@@ -84,6 +105,9 @@ func init() {
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(dashboardCmd)
 	rootCmd.AddCommand(trayCmd)
+	rootCmd.AddCommand(enableCmd)
+	rootCmd.AddCommand(disableCmd)
+	rootCmd.AddCommand(statusCmd)
 
 	addCmd.Flags().StringVarP(&addName, "name", "n", "", "Monitor name")
 	addCmd.Flags().IntVarP(&addInterval, "interval", "i", config.DefaultCheckInterval, "Check interval in seconds")
@@ -302,4 +326,154 @@ func runTray(cmd *cobra.Command, args []string) {
 	t.Run()
 
 	db.Close()
+}
+
+const launchAgentLabel = "com.statping.tray"
+
+const launchAgentTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{.Label}}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{.ExePath}}</string>
+        <string>tray</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>{{.LogPath}}/statping.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{.LogPath}}/statping.err</string>
+</dict>
+</plist>
+`
+
+func getLaunchAgentPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "Library", "LaunchAgents", launchAgentLabel+".plist"), nil
+}
+
+func getExecutablePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Abs(exe)
+}
+
+func runEnable(cmd *cobra.Command, args []string) {
+	plistPath, err := getLaunchAgentPath()
+	if err != nil {
+		log.Fatalf("Failed to get LaunchAgent path: %v", err)
+	}
+
+	exePath, err := getExecutablePath()
+	if err != nil {
+		log.Fatalf("Failed to get executable path: %v", err)
+	}
+
+	logPath, err := config.GetConfigDir()
+	if err != nil {
+		log.Fatalf("Failed to get config dir: %v", err)
+	}
+
+	// Ensure LaunchAgents directory exists
+	launchAgentsDir := filepath.Dir(plistPath)
+	if err := os.MkdirAll(launchAgentsDir, 0755); err != nil {
+		log.Fatalf("Failed to create LaunchAgents directory: %v", err)
+	}
+
+	// Generate plist content
+	tmpl, err := template.New("plist").Parse(launchAgentTemplate)
+	if err != nil {
+		log.Fatalf("Failed to parse template: %v", err)
+	}
+
+	file, err := os.Create(plistPath)
+	if err != nil {
+		log.Fatalf("Failed to create plist file: %v", err)
+	}
+	defer file.Close()
+
+	data := struct {
+		Label   string
+		ExePath string
+		LogPath string
+	}{
+		Label:   launchAgentLabel,
+		ExePath: exePath,
+		LogPath: logPath,
+	}
+
+	if err := tmpl.Execute(file, data); err != nil {
+		log.Fatalf("Failed to write plist: %v", err)
+	}
+
+	// Load the LaunchAgent
+	loadCmd := exec.Command("launchctl", "load", plistPath)
+	if err := loadCmd.Run(); err != nil {
+		fmt.Printf("⚠️  Created plist but failed to load: %v\n", err)
+		fmt.Printf("   You may need to run: launchctl load %s\n", plistPath)
+	} else {
+		fmt.Println("✅ Auto-start enabled! Statping will start on login.")
+		fmt.Printf("   Plist: %s\n", plistPath)
+		fmt.Printf("   Binary: %s\n", exePath)
+	}
+}
+
+func runDisable(cmd *cobra.Command, args []string) {
+	plistPath, err := getLaunchAgentPath()
+	if err != nil {
+		log.Fatalf("Failed to get LaunchAgent path: %v", err)
+	}
+
+	// Check if plist exists
+	if _, err := os.Stat(plistPath); os.IsNotExist(err) {
+		fmt.Println("ℹ️  Auto-start is not enabled (no LaunchAgent found)")
+		return
+	}
+
+	// Unload the LaunchAgent
+	unloadCmd := exec.Command("launchctl", "unload", plistPath)
+	_ = unloadCmd.Run() // Ignore error if not loaded
+
+	// Remove the plist file
+	if err := os.Remove(plistPath); err != nil {
+		log.Fatalf("Failed to remove plist: %v", err)
+	}
+
+	fmt.Println("✅ Auto-start disabled. Statping will no longer start on login.")
+}
+
+func runStatus(cmd *cobra.Command, args []string) {
+	plistPath, err := getLaunchAgentPath()
+	if err != nil {
+		log.Fatalf("Failed to get LaunchAgent path: %v", err)
+	}
+
+	if _, err := os.Stat(plistPath); os.IsNotExist(err) {
+		fmt.Println("❌ Auto-start: Disabled")
+		fmt.Println("   Run 'statping enable' to enable auto-start on login")
+		return
+	}
+
+	// Check if loaded
+	checkCmd := exec.Command("launchctl", "list", launchAgentLabel)
+	if err := checkCmd.Run(); err != nil {
+		fmt.Println("⚠️  Auto-start: Enabled but not loaded")
+		fmt.Printf("   Plist exists at: %s\n", plistPath)
+		fmt.Println("   Run 'launchctl load <plist>' to load it")
+		return
+	}
+
+	fmt.Println("✅ Auto-start: Enabled and running")
+	fmt.Printf("   Plist: %s\n", plistPath)
 }

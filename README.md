@@ -1,16 +1,18 @@
 # Statping - Website Monitoring CLI
 
-A beautiful terminal-based website monitoring tool with TUI interface and macOS notifications.
+A beautiful terminal-based website monitoring tool with TUI interface, system tray support, and macOS notifications.
 
 ## Features
 
 - 📊 **Beautiful TUI** - Interactive terminal interface using Bubble Tea
 - 🔔 **Native Notifications** - macOS alerts when sites go down/recover
+- 🖥️ **System Tray** - Persistent menu bar monitoring with colored status icons
+- 🚀 **Auto-Start** - Launch automatically on login via LaunchAgent
 - 💾 **SQLite Storage** - Persistent storage at `~/.config/statping/statping.db`
 - ✅ **Status Code Checks** - Verify expected HTTP status codes
 - 🔍 **Keyword Matching** - Case-insensitive regex search in responses
 - ⏱️ **Configurable Intervals** - Per-monitor check intervals
-- 📈 **Statistics** - Uptime percentages and response times
+- 📈 **Real-Time Dashboard** - Live graphs with response time sparklines
 - 🚨 **Incident Tracking** - Downtime history with duration
 
 ## Installation
@@ -19,20 +21,58 @@ A beautiful terminal-based website monitoring tool with TUI interface and macOS 
 # Build from source
 go build -o statping ./cmd/statping
 
-# Move to PATH (optional)
+# Move to PATH
+cp statping ~/bin/
+# or
 sudo mv statping /usr/local/bin/
+```
+
+## Quick Start
+
+```bash
+# Add a monitor
+statping add https://example.com -n "Example Site"
+
+# Start system tray (recommended)
+statping tray
+
+# Enable auto-start on login
+statping enable
 ```
 
 ## Usage
 
-### Start TUI + Monitoring
+### System Tray (Recommended)
 ```bash
-./statping start
+statping tray
+```
+Runs persistent monitoring in your macOS menu bar with colored status icons:
+- 🟢 **Green** = All monitors operational
+- 🟡 **Yellow** = Some monitors slow (>1s response)
+- 🔴 **Red** = One or more monitors down
+
+Click the icon to see individual monitor status and response times.
+
+### Auto-Start on Login
+```bash
+# Enable auto-start (creates macOS LaunchAgent)
+statping enable
+
+# Check auto-start status
+statping status
+
+# Disable auto-start
+statping disable
+```
+
+### Interactive TUI
+```bash
+statping start
 ```
 
 ### Real-Time Dashboard with Graphs
 ```bash
-./statping dashboard
+statping dashboard
 ```
 The dashboard shows:
 - 📊 **Sparkline graphs** of response times (last 60 checks)
@@ -40,9 +80,9 @@ The dashboard shows:
 - 🔴🟢 **Status indicators**: Color-coded for up/down/unknown
 - 📋 **Summary cards**: Quick overview of all monitor statuses
 
-### Run in Background (Daemon Mode)
+### Daemon Mode (Headless)
 ```bash
-./statping daemon
+statping daemon
 ```
 
 ### CLI Commands
