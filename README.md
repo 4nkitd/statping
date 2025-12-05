@@ -89,10 +89,10 @@ statping daemon
 
 ```bash
 # Add a monitor
-./statping add https://example.com --name "Example Site"
+statping add https://example.com --name "Example Site"
 
-# Add with options
-./statping add https://api.example.com \
+# Add with all options
+statping add https://api.example.com \
   --name "API Server" \
   --interval 30 \
   --timeout 5 \
@@ -100,11 +100,26 @@ statping daemon
   --keywords "success,ok"
 
 # List all monitors
-./statping list
+statping list
 
 # Remove a monitor
-./statping remove 1
+statping remove <id>
 ```
+
+### Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start TUI with monitoring |
+| `dashboard` | Real-time dashboard with graphs |
+| `tray` | Run in system tray (menu bar) |
+| `daemon` | Run headless in background |
+| `add <url>` | Add a new monitor |
+| `list` | List all monitors |
+| `remove <id>` | Remove a monitor |
+| `enable` | Enable auto-start on login |
+| `disable` | Disable auto-start |
+| `status` | Check auto-start status |
 
 ## TUI Keybindings
 
@@ -144,6 +159,17 @@ All data is stored in SQLite at:
 ```
 ~/.config/statping/statping.db
 ```
+
+Logs (when running via LaunchAgent):
+```
+~/.config/statping/statping.log
+~/.config/statping/statping.err
+```
+
+## Requirements
+
+- macOS (for system tray and notifications)
+- Go 1.21+ (for building)
 
 ## License
 
