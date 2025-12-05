@@ -11,50 +11,99 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Dashboard color palette
 var (
-	dashTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("170")).
-			Background(lipgloss.Color("236")).
-			Padding(0, 1)
+	dColorGreen   = lipgloss.Color("#04B575")
+	dColorRed     = lipgloss.Color("#FF4D4D")
+	dColorYellow  = lipgloss.Color("#FFCC00")
+	dColorOrange  = lipgloss.Color("#FF8C00")
+	dColorPurple  = lipgloss.Color("#BD93F9")
+	dColorGray    = lipgloss.Color("#6C7086")
+	dColorDimGray = lipgloss.Color("#45475A")
+	dColorWhite   = lipgloss.Color("#CDD6F4")
+)
 
-	cardStyle = lipgloss.NewStyle().
+// Dashboard styles
+var (
+	dHeaderStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(dColorWhite).
+			Background(dColorPurple).
+			Padding(0, 2)
+
+	dSubtitleStyle = lipgloss.NewStyle().
+			Foreground(dColorGray)
+
+	dCardStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(1, 2)
-
-	graphUpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42"))
-
-	graphDownStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
-
-	metricLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("244"))
-
-	metricValueStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("255"))
-
-	uptimeGoodStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("42"))
-
-	uptimeBadStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("196"))
-
-	responseTimeStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("39"))
-
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255")).
-			Background(lipgloss.Color("62")).
-			Padding(0, 1).
+			BorderForeground(dColorDimGray).
+			Padding(1, 2).
 			MarginBottom(1)
 
-	sparkBlocks = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	dCardSelectedStyle = lipgloss.NewStyle().
+				Border(lipgloss.ThickBorder()).
+				BorderForeground(dColorPurple).
+				Padding(1, 2).
+				MarginBottom(1)
+
+	dStatusUpStyle = lipgloss.NewStyle().
+			Foreground(dColorGreen).
+			Bold(true)
+
+	dStatusDownStyle = lipgloss.NewStyle().
+				Foreground(dColorRed).
+				Bold(true)
+
+	dStatusUnknownStyle = lipgloss.NewStyle().
+				Foreground(dColorGray).
+				Bold(true)
+
+	dMetricLabelStyle = lipgloss.NewStyle().
+				Foreground(dColorGray)
+
+	dMetricValueStyle = lipgloss.NewStyle().
+				Foreground(dColorWhite).
+				Bold(true)
+
+	dMetricGoodStyle = lipgloss.NewStyle().
+				Foreground(dColorGreen).
+				Bold(true)
+
+	dMetricBadStyle = lipgloss.NewStyle().
+			Foreground(dColorRed).
+			Bold(true)
+
+	dMetricWarnStyle = lipgloss.NewStyle().
+				Foreground(dColorYellow).
+				Bold(true)
+
+	dMonitorNameStyle = lipgloss.NewStyle().
+				Foreground(dColorWhite).
+				Bold(true)
+
+	dUrlStyle = lipgloss.NewStyle().
+			Foreground(dColorGray)
+
+	dGraphGreenStyle = lipgloss.NewStyle().
+				Foreground(dColorGreen)
+
+	dGraphYellowStyle = lipgloss.NewStyle().
+				Foreground(dColorYellow)
+
+	dGraphOrangeStyle = lipgloss.NewStyle().
+				Foreground(dColorOrange)
+
+	dGraphRedStyle = lipgloss.NewStyle().
+			Foreground(dColorRed)
+
+	dHelpStyle = lipgloss.NewStyle().
+			Foreground(dColorDimGray)
+
+	dHelpKeyStyle = lipgloss.NewStyle().
+			Foreground(dColorPurple).
+			Bold(true)
+
+	dSparkBlocks = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 )
 
 type DashboardModel struct {
@@ -143,21 +192,23 @@ func (m DashboardModel) View() string {
 
 	var b strings.Builder
 
-	// Header
-	header := headerStyle.Width(m.width - 2).Render(
-		fmt.Sprintf("📊 Statping Dashboard • %d monitors • Updated: %s",
-			len(m.monitors),
-			m.lastUpdate.Format("15:04:05")))
-	b.WriteString(header)
+	// Header with gradient-like effect
+	headerText := " 📊 STATPING DASHBOARD "
+	header := dHeaderStyle.Render(headerText)
+	statsText := dSubtitleStyle.Render(fmt.Sprintf("  %d monitors • Updated %s", len(m.monitors), m.lastUpdate.Format("15:04:05")))
+	b.WriteString(header + statsText)
 	b.WriteString("\n\n")
 
 	if len(m.monitors) == 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render(
-			"No monitors configured. Use 'statping add <url>' to add one."))
+		emptyMsg := lipgloss.NewStyle().
+			Foreground(dColorGray).
+			Italic(true).
+			Render("  No monitors configured. Use 'statping add <url>' to add one.")
+		b.WriteString(emptyMsg)
 		return b.String()
 	}
 
-	// Summary cards
+	// Summary cards with better styling
 	upCount, downCount, unknownCount := m.countStatus()
 	summaryCards := m.renderSummaryCards(upCount, downCount, unknownCount)
 	b.WriteString(summaryCards)
@@ -171,11 +222,12 @@ func (m DashboardModel) View() string {
 		b.WriteString("\n")
 	}
 
-	// Help
-	help := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(
-		"j/k: navigate • r: refresh • q: quit")
-	b.WriteString("\n")
-	b.WriteString(help)
+	// Help bar with styled keys
+	helpText := fmt.Sprintf("%s navigate • %s refresh • %s quit",
+		dHelpKeyStyle.Render("↑↓"),
+		dHelpKeyStyle.Render("r"),
+		dHelpKeyStyle.Render("q"))
+	b.WriteString(dHelpStyle.Render(helpText))
 
 	return b.String()
 }
@@ -197,27 +249,27 @@ func (m DashboardModel) countStatus() (up, down, unknown int) {
 func (m DashboardModel) renderSummaryCards(up, down, unknown int) string {
 	upCard := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("42")).
-		Padding(0, 2).
+		BorderForeground(dColorGreen).
+		Padding(0, 3).
 		Render(fmt.Sprintf("%s\n%s",
-			uptimeGoodStyle.Render(fmt.Sprintf("✓ %d UP", up)),
-			metricLabelStyle.Render("Healthy")))
+			dStatusUpStyle.Render(fmt.Sprintf("✓ %d UP", up)),
+			dMetricLabelStyle.Render("Healthy")))
 
 	downCard := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).
-		Padding(0, 2).
+		BorderForeground(dColorRed).
+		Padding(0, 3).
 		Render(fmt.Sprintf("%s\n%s",
-			uptimeBadStyle.Render(fmt.Sprintf("✗ %d DOWN", down)),
-			metricLabelStyle.Render("Issues")))
+			dStatusDownStyle.Render(fmt.Sprintf("✗ %d DOWN", down)),
+			dMetricLabelStyle.Render("Issues")))
 
 	unknownCard := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("244")).
-		Padding(0, 2).
+		BorderForeground(dColorGray).
+		Padding(0, 3).
 		Render(fmt.Sprintf("%s\n%s",
-			metricValueStyle.Render(fmt.Sprintf("? %d UNKNOWN", unknown)),
-			metricLabelStyle.Render("Pending")))
+			dStatusUnknownStyle.Render(fmt.Sprintf("? %d UNKNOWN", unknown)),
+			dMetricLabelStyle.Render("Pending")))
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, upCard, "  ", downCard, "  ", unknownCard)
 }
@@ -258,42 +310,48 @@ func (m DashboardModel) renderMonitorCard(mon storage.Monitor, selected bool) st
 	// Build card content
 	var content strings.Builder
 
-	// Name and Status row
-	statusIcon := "?"
-	statusStyle := metricLabelStyle
+	// Status indicator and name
+	var statusIcon string
+	var statusStyle lipgloss.Style
 	switch mon.CurrentStatus {
 	case "up":
 		statusIcon = "●"
-		statusStyle = uptimeGoodStyle
+		statusStyle = dStatusUpStyle
 	case "down":
 		statusIcon = "●"
-		statusStyle = uptimeBadStyle
+		statusStyle = dStatusDownStyle
+	default:
+		statusIcon = "○"
+		statusStyle = dStatusUnknownStyle
 	}
 
+	// Header row with status, name, and URL
 	nameRow := fmt.Sprintf("%s %s  %s",
 		statusStyle.Render(statusIcon),
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render(mon.Name),
-		metricLabelStyle.Render(truncateURL(mon.URL, 40)))
+		dMonitorNameStyle.Render(mon.Name),
+		dUrlStyle.Render(truncateURL(mon.URL, 45)))
 	content.WriteString(nameRow)
 	content.WriteString("\n\n")
 
-	// Response time graph (sparkline)
-	graph := m.renderSparkline(results, 50)
-	content.WriteString(metricLabelStyle.Render("Response Time (last 60 checks):"))
+	// Response time graph label
+	content.WriteString(dMetricLabelStyle.Render("Response Time (last 60 checks):"))
 	content.WriteString("\n")
+
+	// Sparkline graph
+	graph := m.renderSparkline(results, 60)
 	content.WriteString(graph)
 	content.WriteString("\n\n")
 
-	// Metrics row
+	// Metrics row with better spacing
 	metricsRow := lipgloss.JoinHorizontal(lipgloss.Top,
 		m.renderMetric("Uptime", fmt.Sprintf("%.1f%%", uptime), uptime >= 99),
-		"   ",
-		m.renderMetric("Avg", fmt.Sprintf("%dms", avgResponseTime), true),
-		"   ",
+		"    ",
+		m.renderMetric("Avg", fmt.Sprintf("%dms", avgResponseTime), avgResponseTime < 500),
+		"    ",
 		m.renderMetric("Min", fmt.Sprintf("%dms", minResponseTime), true),
-		"   ",
+		"    ",
 		m.renderMetric("Max", fmt.Sprintf("%dms", maxResponseTime), maxResponseTime < 1000),
-		"   ",
+		"    ",
 		m.renderMetric("Checks", fmt.Sprintf("%d", len(results)), true),
 	)
 	content.WriteString(metricsRow)
@@ -302,35 +360,33 @@ func (m DashboardModel) renderMonitorCard(mon storage.Monitor, selected bool) st
 	if mon.LastCheckAt != nil {
 		content.WriteString("\n\n")
 		lastCheck := fmt.Sprintf("Last check: %s ago", formatTimeAgo(*mon.LastCheckAt))
-		content.WriteString(metricLabelStyle.Render(lastCheck))
+		content.WriteString(dMetricLabelStyle.Render(lastCheck))
 	}
 
-	// Card border color based on status
-	borderColor := lipgloss.Color("240")
-	if mon.CurrentStatus == "up" {
-		borderColor = lipgloss.Color("42")
-	} else if mon.CurrentStatus == "down" {
-		borderColor = lipgloss.Color("196")
-	}
-
-	cardStyleWithStatus := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Padding(1, 2).
-		Width(m.width - 4)
-
+	// Card styling based on status and selection
+	var cardStyleFinal lipgloss.Style
 	if selected {
-		cardStyleWithStatus = cardStyleWithStatus.
-			BorderForeground(lipgloss.Color("170")).
-			BorderStyle(lipgloss.DoubleBorder())
+		cardStyleFinal = dCardSelectedStyle.
+			Width(m.width - 4).
+			BorderForeground(dColorPurple)
+	} else {
+		borderColor := dColorDimGray
+		if mon.CurrentStatus == "up" {
+			borderColor = dColorGreen
+		} else if mon.CurrentStatus == "down" {
+			borderColor = dColorRed
+		}
+		cardStyleFinal = dCardStyle.
+			Width(m.width - 4).
+			BorderForeground(borderColor)
 	}
 
-	return cardStyleWithStatus.Render(content.String())
+	return cardStyleFinal.Render(content.String())
 }
 
 func (m DashboardModel) renderSparkline(results []storage.CheckResult, width int) string {
 	if len(results) == 0 {
-		return metricLabelStyle.Render("No data yet")
+		return dMetricLabelStyle.Render("No data yet")
 	}
 
 	// Reverse to show oldest to newest (left to right)
@@ -363,44 +419,46 @@ func (m DashboardModel) renderSparkline(results []storage.CheckResult, width int
 	for i := startIdx; i < len(reversed); i++ {
 		r := reversed[i]
 		if !r.Success {
-			spark.WriteString(graphDownStyle.Render("▄"))
+			spark.WriteString(dGraphRedStyle.Render("▄"))
 			continue
 		}
 
 		// Scale response time to spark block
 		normalized := float64(r.ResponseTime) / float64(maxTime)
-		blockIdx := int(normalized * float64(len(sparkBlocks)-1))
-		if blockIdx >= len(sparkBlocks) {
-			blockIdx = len(sparkBlocks) - 1
+		blockIdx := int(normalized * float64(len(dSparkBlocks)-1))
+		if blockIdx >= len(dSparkBlocks) {
+			blockIdx = len(dSparkBlocks) - 1
 		}
 		if blockIdx < 0 {
 			blockIdx = 0
 		}
 
 		// Color based on response time
-		block := string(sparkBlocks[blockIdx])
+		block := string(dSparkBlocks[blockIdx])
 		if r.ResponseTime < 200 {
-			spark.WriteString(graphUpStyle.Render(block))
+			spark.WriteString(dGraphGreenStyle.Render(block))
 		} else if r.ResponseTime < 500 {
-			spark.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render(block))
+			spark.WriteString(dGraphYellowStyle.Render(block))
 		} else {
-			spark.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Render(block))
+			spark.WriteString(dGraphOrangeStyle.Render(block))
 		}
 	}
 
 	// Add scale indicator
 	scale := fmt.Sprintf(" (0-%dms)", maxTime)
-	return spark.String() + metricLabelStyle.Render(scale)
+	return spark.String() + dMetricLabelStyle.Render(scale)
 }
 
 func (m DashboardModel) renderMetric(label, value string, good bool) string {
-	valueStyle := metricValueStyle
-	if !good {
-		valueStyle = uptimeBadStyle
+	var valueStyle lipgloss.Style
+	if good {
+		valueStyle = dMetricValueStyle
+	} else {
+		valueStyle = dMetricWarnStyle
 	}
 	return fmt.Sprintf("%s\n%s",
 		valueStyle.Render(value),
-		metricLabelStyle.Render(label))
+		dMetricLabelStyle.Render(label))
 }
 
 func truncateURL(url string, maxLen int) string {
