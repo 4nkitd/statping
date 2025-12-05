@@ -12,6 +12,7 @@ import (
 	"github.com/ankityadav/statping/internal/config"
 	"github.com/ankityadav/statping/internal/notifier"
 	"github.com/ankityadav/statping/internal/storage"
+	"github.com/ankityadav/statping/internal/tray"
 	"github.com/ankityadav/statping/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -61,6 +62,12 @@ var dashboardCmd = &cobra.Command{
 	Run:   runDashboard,
 }
 
+var trayCmd = &cobra.Command{
+	Use:   "tray",
+	Short: "Run in system tray (persistent background monitoring)",
+	Run:   runTray,
+}
+
 var (
 	addName          string
 	addInterval      int
@@ -76,6 +83,7 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(dashboardCmd)
+	rootCmd.AddCommand(trayCmd)
 
 	addCmd.Flags().StringVarP(&addName, "name", "n", "", "Monitor name")
 	addCmd.Flags().IntVarP(&addInterval, "interval", "i", config.DefaultCheckInterval, "Check interval in seconds")
@@ -282,4 +290,16 @@ func runDashboard(cmd *cobra.Command, args []string) {
 	}
 
 	c.Stop()
+}
+
+func runTray(cmd *cobra.Command, args []string) {
+	db, err := initDatabase()
+	if err != nil {
+		log.Fatalf("Database initialization failed: %v", err)
+	}
+
+	t := tray.New(db)
+	t.Run()
+
+	db.Close()
 }
