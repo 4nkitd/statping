@@ -109,11 +109,13 @@ header h1 {
     gap: 1rem;
     border: 1px solid var(--border);
     transition: all 0.2s;
+    cursor: pointer;
 }
 
 .monitor-card:hover {
     border-color: var(--accent);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(122, 162, 247, 0.15);
 }
 
 .monitor-status {

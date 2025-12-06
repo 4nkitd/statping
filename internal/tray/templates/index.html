@@ -24,7 +24,7 @@
             <div class="monitors-list">
                 {{if .Monitors}}
                 {{range .Monitors}}
-                <div class="monitor-card" data-id="{{.ID}}">
+                <div class="monitor-card" data-id="{{.ID}}" onclick="openMonitorDetail({{.ID}}, event)">
                     <div class="monitor-status {{if eq .CurrentStatus "up"}}up{{else if eq .CurrentStatus "down"}}down{{else}}unknown{{end}}">
                         {{if eq .CurrentStatus "up"}}●{{else if eq .CurrentStatus "down"}}●{{else}}○{{end}}
                     </div>
@@ -38,7 +38,10 @@
                             {{if .Keywords}}<span>•</span><span>Keywords: {{.Keywords}}</span>{{end}}
                         </div>
                     </div>
-                    <div class="monitor-actions">
+                    <div class="monitor-actions" onclick="event.stopPropagation()">
+                        <button class="btn-icon view-btn" title="View Details" onclick="openMonitorDetail({{.ID}}, event)">
+                            📊
+                        </button>
                         <button class="btn-icon toggle-btn" title="Toggle" onclick="toggleMonitor({{.ID}})">
                             {{if .Enabled}}⏸{{else}}▶{{end}}
                         </button>
@@ -210,6 +213,12 @@
             } catch (err) {
                 alert('Error: ' + err.message);
             }
+        }
+
+        // Open monitor detail view
+        function openMonitorDetail(id, event) {
+            if (event) event.stopPropagation();
+            window.location.href = `/site/${id}`;
         }
     </script>
 </body>

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Monitor.Name}} - Statping</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .back-btn:hover { color: var(--accent); }
+
+        .site-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .site-status {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+        .site-status.up { color: var(--success); }
+        .site-status.down { color: var(--error); }
+        .site-status.unknown { color: var(--text-secondary); }
+        .site-info h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .site-url {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .period-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .period-tab {
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .period-tab:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .period-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+        .stat-value.good { color: var(--success); }
+        .stat-value.warn { color: var(--warning); }
+        .stat-value.bad { color: var(--error); }
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 250px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .incident-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .incident-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            border-left: 4px solid var(--error);
+        }
+        .incident-item.resolved {
+            border-left-color: var(--success);
+            opacity: 0.8;
+        }
+        .incident-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .incident-status {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .incident-status.ongoing {
+            background: rgba(247, 118, 142, 0.2);
+            color: var(--error);
+        }
+        .incident-status.resolved {
+            background: rgba(158, 206, 106, 0.2);
+            color: var(--success);
+        }
+        .incident-time {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .incident-error {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        .incident-duration {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-incidents {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .uptime-bar-container {
+            margin-bottom: 1.5rem;
+        }
+        .uptime-bar {
+            display: flex;
+            height: 32px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg-tertiary);
+            gap: 2px;
+        }
+        .uptime-segment {
+            flex: 1;
+            min-width: 4px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .uptime-segment:hover {
+            transform: scaleY(1.1);
+        }
+        .uptime-segment.up { background: var(--success); }
+        .uptime-segment.down { background: var(--error); }
+        .uptime-segment.partial { background: var(--warning); }
+        .uptime-segment.none { background: var(--bg-tertiary); }
+        .uptime-legend {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Monitors</a>
+
+        <div class="site-header">
+            <div class="site-status {{if eq .Monitor.CurrentStatus "up"}}up{{else if eq .Monitor.CurrentStatus "down"}}down{{else}}unknown{{end}}">
+                {{if eq .Monitor.CurrentStatus "up"}}●{{else if eq .Monitor.CurrentStatus "down"}}●{{else}}○{{end}}
+            </div>
+            <div class="site-info">
+                <h1>{{.Monitor.Name}}</h1>
+                <div class="site-url">{{.Monitor.URL}}</div>
+            </div>
+        </div>
+
+        <div class="period-tabs">
+            <button class="period-tab active" data-period="24h">Last 24 Hours</button>
+            <button class="period-tab" data-period="7d">Last 7 Days</button>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-uptime">--</div>
+                <div class="stat-label">Uptime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-avg-response">--</div>
+                <div class="stat-label">Avg Response</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-checks">--</div>
+                <div class="stat-label">Total Checks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-incidents">--</div>
+                <div class="stat-label">Incidents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-downtime">--</div>
+                <div class="stat-label">Downtime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-success-rate">--</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+        </div>
+
+        <div class="uptime-bar-container">
+            <div class="section-title">📊 Uptime Timeline</div>
+            <div class="uptime-bar" id="uptime-bar"></div>
+            <div class="uptime-legend">
+                <span id="period-start">--</span>
+                <span id="period-end">Now</span>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">📈 Response Time</div>
+            <div class="chart-wrapper">
+                <canvas id="responseChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">📊 Status Code Distribution</div>
+            <div class="chart-wrapper" style="height: 200px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+
+        <div class="section-title">🚨 Incident History</div>
+        <div id="incidents-list" class="incident-list">
+            <div class="loading"><div class="spinner"></div><p>Loading incidents...</p></div>
+        </div>
+    </div>
+
+    <script>
+        const monitorId = {{.Monitor.ID}};
+        let currentPeriod = '24h';
+        let responseChart = null;
+        let statusChart = null;
+
+        // Period tab switching
+        document.querySelectorAll('.period-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentPeriod = tab.dataset.period;
+                loadData();
+            });
+        });
+
+        async function loadData() {
+            await Promise.all([
+                loadStats(),
+                loadChecks(),
+                loadIncidents()
+            ]);
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch(`/api/monitor/stats?id=${monitorId}&period=${currentPeriod}`);
+                const data = await res.json();
+                
+                const uptimeEl = document.getElementById('stat-uptime');
+                uptimeEl.textContent = data.uptime.toFixed(1) + '%';
+                uptimeEl.className = 'stat-value ' + (data.uptime >= 99 ? 'good' : data.uptime >= 95 ? 'warn' : 'bad');
+                
+                document.getElementById('stat-avg-response').textContent = Math.round(data.avg_response_time) + 'ms';
+                document.getElementById('stat-checks').textContent = data.total_checks;
+                
+                const incidentsEl = document.getElementById('stat-incidents');
+                incidentsEl.textContent = data.incident_count;
+                incidentsEl.className = 'stat-value ' + (data.incident_count === 0 ? 'good' : 'bad');
+                
+                document.getElementById('stat-downtime').textContent = data.downtime_minutes < 1 ? '0m' : 
+                    data.downtime_minutes < 60 ? Math.round(data.downtime_minutes) + 'm' : 
+                    (data.downtime_minutes / 60).toFixed(1) + 'h';
+                
+                const successRate = data.total_checks > 0 ? (data.successful_checks / data.total_checks * 100) : 0;
+                const successEl = document.getElementById('stat-success-rate');
+                successEl.textContent = successRate.toFixed(1) + '%';
+                successEl.className = 'stat-value ' + (successRate >= 99 ? 'good' : successRate >= 95 ? 'warn' : 'bad');
+            } catch (err) {
+                console.error('Failed to load stats:', err);
+            }
+        }
+
+        async function loadChecks() {
+            try {
+                const limit = currentPeriod === '7d' ? 1000 : 500;
+                const res = await fetch(`/api/monitor/checks?id=${monitorId}&limit=${limit}`);
+                const checks = await res.json();
+                
+                // Update period labels
+                const hours = currentPeriod === '7d' ? 168 : 24;
+                document.getElementById('period-start').textContent = currentPeriod === '7d' ? '7 days ago' : '24 hours ago';
+                
+                // Build uptime bar
+                buildUptimeBar(checks, hours);
+                
+                // Build response time chart
+                buildResponseChart(checks);
+                
+                // Build status code chart
+                buildStatusChart(checks);
+            } catch (err) {
+                console.error('Failed to load checks:', err);
+            }
+        }
+
+        function buildUptimeBar(checks, hours) {
+            const bar = document.getElementById('uptime-bar');
+            bar.innerHTML = '';
+            
+            // Group checks into time segments
+            const segments = hours;
+            const now = new Date();
+            const segmentDuration = (hours * 60 * 60 * 1000) / segments;
+            
+            const segmentData = [];
+            for (let i = 0; i < segments; i++) {
+                segmentData.push({ up: 0, down: 0, total: 0 });
+            }
+            
+            checks.forEach(check => {
+                const checkTime = new Date(check.timestamp);
+                const age = now - checkTime;
+                const segmentIndex = Math.floor(age / segmentDuration);
+                if (segmentIndex >= 0 && segmentIndex < segments) {
+                    const idx = segments - 1 - segmentIndex; // Reverse order
+                    segmentData[idx].total++;
+                    if (check.success) {
+                        segmentData[idx].up++;
+                    } else {
+                        segmentData[idx].down++;
+                    }
+                }
+            });
+            
+            segmentData.forEach((seg, i) => {
+                const div = document.createElement('div');
+                div.className = 'uptime-segment ';
+                if (seg.total === 0) {
+                    div.className += 'none';
+                } else if (seg.down === 0) {
+                    div.className += 'up';
+                } else if (seg.up === 0) {
+                    div.className += 'down';
+                } else {
+                    div.className += 'partial';
+                }
+                div.title = `${seg.up}/${seg.total} successful`;
+                bar.appendChild(div);
+            });
+        }
+
+        function buildResponseChart(checks) {
+            const ctx = document.getElementById('responseChart').getContext('2d');
+            
+            // Reverse to show oldest first
+            const reversed = [...checks].reverse();
+            
+            // Sample data points for performance
+            const maxPoints = 100;
+            const step = Math.max(1, Math.floor(reversed.length / maxPoints));
+            const sampled = reversed.filter((_, i) => i % step === 0);
+            
+            const labels = sampled.map(c => {
+                const d = new Date(c.timestamp);
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            });
+            
+            const data = sampled.map(c => c.success ? c.response_time : null);
+            const errorPoints = sampled.map(c => c.success ? null : 0);
+            
+            if (responseChart) {
+                responseChart.destroy();
+            }
+            
+            responseChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Response Time (ms)',
+                        data,
+                        borderColor: '#7aa2f7',
+                        backgroundColor: 'rgba(122, 162, 247, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    }, {
+                        label: 'Errors',
+                        data: errorPoints,
+                        borderColor: '#f7768e',
+                        backgroundColor: '#f7768e',
+                        pointRadius: sampled.map(c => c.success ? 0 : 5),
+                        pointStyle: 'triangle',
+                        showLine: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            backgroundColor: '#24283b',
+                            titleColor: '#c0caf5',
+                            bodyColor: '#c0caf5',
+                            borderColor: '#414868',
+                            borderWidth: 1,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { color: 'rgba(65, 72, 104, 0.3)' },
+                            ticks: { color: '#565f89', maxTicksLimit: 8 }
+                        },
+                        y: {
+                            display: true,
+                            grid: { color: 'rgba(65, 72, 104, 0.3)' },
+                            ticks: { color: '#565f89' },
+                            title: { display: true, text: 'ms', color: '#565f89' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function buildStatusChart(checks) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            // Count status codes
+            const statusCounts = {};
+            checks.forEach(c => {
+                const code = c.success ? c.status_code : 'Error';
+                statusCounts[code] = (statusCounts[code] || 0) + 1;
+            });
+            
+            const labels = Object.keys(statusCounts).sort();
+            const data = labels.map(l => statusCounts[l]);
+            const colors = labels.map(l => {
+                if (l === 'Error') return '#f7768e';
+                const code = parseInt(l);
+                if (code >= 200 && code < 300) return '#9ece6a';
+                if (code >= 300 && code < 400) return '#7aa2f7';
+                if (code >= 400 && code < 500) return '#e0af68';
+                return '#f7768e';
+            });
+            
+            if (statusChart) {
+                statusChart.destroy();
+            }
+            
+            statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#c0caf5' }
+                        },
+                        tooltip: {
+                            backgroundColor: '#24283b',
+                            titleColor: '#c0caf5',
+                            bodyColor: '#c0caf5',
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadIncidents() {
+            const container = document.getElementById('incidents-list');
+            try {
+                const res = await fetch(`/api/monitor/incidents?id=${monitorId}`);
+                const incidents = await res.json();
+                
+                if (!incidents || incidents.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-incidents">
+                            <div class="empty-icon">✅</div>
+                            <p>No incidents recorded</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = incidents.map(inc => `
+                    <div class="incident-item ${inc.resolved ? 'resolved' : ''}">
+                        <div class="incident-header">
+                            <span class="incident-time">${formatDate(inc.started_at)}</span>
+                            <span class="incident-status ${inc.resolved ? 'resolved' : 'ongoing'}">
+                                ${inc.resolved ? '✅ Resolved' : '🔴 Ongoing'}
+                            </span>
+                        </div>
+                        <div class="incident-error">${escapeHtml(inc.error)}</div>
+                        <div class="incident-duration">
+                            Duration: ${inc.duration}
+                            ${inc.resolved ? ' • Resolved: ' + formatDate(inc.resolved_at) : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                container.innerHTML = '<div class="empty-incidents">Failed to load incidents</div>';
+                console.error('Failed to load incidents:', err);
+            }
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return '--';
+            const d = new Date(isoString);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initial load
+        loadData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

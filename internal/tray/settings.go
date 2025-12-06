@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/ankityadav/statping/internal/storage"
 )
@@ -47,10 +48,14 @@ func (s *SettingsServer) Show() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/site/", s.handleSiteDetail)
 	mux.HandleFunc("/api/monitors", s.handleMonitors)
 	mux.HandleFunc("/api/monitor/add", s.handleAddMonitor)
 	mux.HandleFunc("/api/monitor/delete", s.handleDeleteMonitor)
 	mux.HandleFunc("/api/monitor/toggle", s.handleToggleMonitor)
+	mux.HandleFunc("/api/monitor/stats", s.handleMonitorStats)
+	mux.HandleFunc("/api/monitor/checks", s.handleMonitorChecks)
+	mux.HandleFunc("/api/monitor/incidents", s.handleMonitorIncidents)
 	mux.HandleFunc("/static/style.css", s.handleCSS)
 
 	s.server = &http.Server{
@@ -230,4 +235,194 @@ func (s *SettingsServer) handleToggleMonitor(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true, "enabled": monitor.Enabled})
+}
+
+func (s *SettingsServer) handleSiteDetail(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from /site/123
+	path := r.URL.Path
+	idStr := path[len("/site/"):]
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
+
+	monitor, err := s.db.GetMonitor(uint(id))
+	if err != nil {
+		http.Error(w, "Monitor not found", 404)
+		return
+	}
+
+	tmpl := template.Must(template.ParseFS(templatesFS, "templates/detail.html"))
+	tmpl.Execute(w, map[string]interface{}{
+		"Monitor": monitor,
+		"Port":    s.port,
+	})
+}
+
+func (s *SettingsServer) handleMonitorStats(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
+
+	period := r.URL.Query().Get("period")
+	var since time.Time
+	switch period {
+	case "7d":
+		since = time.Now().Add(-7 * 24 * time.Hour)
+	default:
+		since = time.Now().Add(-24 * time.Hour)
+	}
+
+	total, successful, avgResponseTime, err := s.db.GetCheckResultStats(uint(id), since)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	uptime := float64(0)
+	if total > 0 {
+		uptime = float64(successful) / float64(total) * 100
+	}
+
+	// Get incidents count
+	incidents, _ := s.db.GetRecentIncidents(uint(id), 100)
+	incidentCount := 0
+	var totalDowntime time.Duration
+	for _, inc := range incidents {
+		if inc.StartedAt.After(since) {
+			incidentCount++
+			if inc.ResolvedAt != nil {
+				totalDowntime += inc.ResolvedAt.Sub(inc.StartedAt)
+			} else {
+				totalDowntime += time.Since(inc.StartedAt)
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total_checks":      total,
+		"successful_checks": successful,
+		"failed_checks":     total - successful,
+		"uptime":            uptime,
+		"avg_response_time": avgResponseTime,
+		"incident_count":    incidentCount,
+		"total_downtime":    totalDowntime.String(),
+		"downtime_minutes":  totalDowntime.Minutes(),
+	})
+}
+
+func (s *SettingsServer) handleMonitorChecks(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit := 500
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	results, err := s.db.GetRecentCheckResults(uint(id), limit)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// Convert to JSON-friendly format with timestamps
+	type CheckData struct {
+		Timestamp    string `json:"timestamp"`
+		ResponseTime int64  `json:"response_time"`
+		StatusCode   int    `json:"status_code"`
+		Success      bool   `json:"success"`
+		Error        string `json:"error,omitempty"`
+	}
+
+	checks := make([]CheckData, len(results))
+	for i, r := range results {
+		checks[i] = CheckData{
+			Timestamp:    r.CreatedAt.Format(time.RFC3339),
+			ResponseTime: r.ResponseTime,
+			StatusCode:   r.StatusCode,
+			Success:      r.Success,
+			Error:        r.ErrorMessage,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(checks)
+}
+
+func (s *SettingsServer) handleMonitorIncidents(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
+
+	incidents, err := s.db.GetRecentIncidents(uint(id), 50)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	type IncidentData struct {
+		ID         uint    `json:"id"`
+		StartedAt  string  `json:"started_at"`
+		ResolvedAt *string `json:"resolved_at"`
+		Duration   string  `json:"duration"`
+		Error      string  `json:"error"`
+		Resolved   bool    `json:"resolved"`
+	}
+
+	data := make([]IncidentData, len(incidents))
+	for i, inc := range incidents {
+		var resolvedAt *string
+		if inc.ResolvedAt != nil {
+			t := inc.ResolvedAt.Format(time.RFC3339)
+			resolvedAt = &t
+		}
+
+		var duration time.Duration
+		if inc.ResolvedAt != nil {
+			duration = inc.ResolvedAt.Sub(inc.StartedAt)
+		} else {
+			duration = time.Since(inc.StartedAt)
+		}
+
+		data[i] = IncidentData{
+			ID:         inc.ID,
+			StartedAt:  inc.StartedAt.Format(time.RFC3339),
+			ResolvedAt: resolvedAt,
+			Duration:   formatDurationHuman(duration),
+			Error:      inc.ErrorMessage,
+			Resolved:   inc.ResolvedAt != nil,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
+func formatDurationHuman(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm %ds", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
+	}
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	return fmt.Sprintf("%dd %dh", days, hours)
 }
