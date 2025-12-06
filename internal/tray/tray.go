@@ -57,6 +57,7 @@ func (t *TrayApp) onReady() {
 	systray.AddSeparator()
 
 	mRefresh := systray.AddMenuItem("↻ Refresh Now", "Check all monitors immediately")
+	mSettings := systray.AddMenuItem("⚙ Settings...", "Open settings window")
 
 	systray.AddSeparator()
 
@@ -69,6 +70,8 @@ func (t *TrayApp) onReady() {
 			select {
 			case <-mRefresh.ClickedCh:
 				go t.checkAllMonitors()
+			case <-mSettings.ClickedCh:
+				go t.openSettings()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
@@ -77,6 +80,14 @@ func (t *TrayApp) onReady() {
 			}
 		}
 	}()
+}
+
+func (t *TrayApp) openSettings() {
+	settings := NewSettingsWindow(t.db, func() {
+		t.loadMonitors()
+		t.checkAllMonitors()
+	})
+	settings.Show()
 }
 
 func (t *TrayApp) onExit() {

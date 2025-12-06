@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statping Settings</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Statping Settings</h1>
+            <p class="subtitle">Manage your website monitors</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="monitors">Monitors</button>
+            <button class="tab" data-tab="add">Add New</button>
+            <button class="tab" data-tab="about">About</button>
+        </div>
+
+        <!-- Monitors Tab -->
+        <div id="monitors" class="tab-content active">
+            <div class="monitors-list">
+                {{if .Monitors}}
+                {{range .Monitors}}
+                <div class="monitor-card" data-id="{{.ID}}">
+                    <div class="monitor-status {{if eq .CurrentStatus "up"}}up{{else if eq .CurrentStatus "down"}}down{{else}}unknown{{end}}">
+                        {{if eq .CurrentStatus "up"}}●{{else if eq .CurrentStatus "down"}}●{{else}}○{{end}}
+                    </div>
+                    <div class="monitor-info">
+                        <div class="monitor-name">{{.Name}}</div>
+                        <div class="monitor-url">{{.URL}}</div>
+                        <div class="monitor-meta">
+                            <span>Every {{.CheckInterval}}s</span>
+                            <span>•</span>
+                            <span>Codes: {{.ExpectedCodes}}</span>
+                            {{if .Keywords}}<span>•</span><span>Keywords: {{.Keywords}}</span>{{end}}
+                        </div>
+                    </div>
+                    <div class="monitor-actions">
+                        <button class="btn-icon toggle-btn" title="Toggle" onclick="toggleMonitor({{.ID}})">
+                            {{if .Enabled}}⏸{{else}}▶{{end}}
+                        </button>
+                        <button class="btn-icon delete-btn" title="Delete" onclick="deleteMonitor({{.ID}}, '{{.Name}}')">
+                            🗑
+                        </button>
+                    </div>
+                </div>
+                {{end}}
+                {{else}}
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h3>No monitors yet</h3>
+                    <p>Add your first monitor to get started</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Add New Tab -->
+        <div id="add" class="tab-content">
+            <form id="add-form" onsubmit="addMonitor(event)">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" placeholder="My Website">
+                    <span class="hint">Display name for this monitor</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="url">URL <span class="required">*</span></label>
+                    <input type="url" id="url" placeholder="https://example.com" required>
+                    <span class="hint">Full URL including https://</span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="interval">Interval (seconds)</label>
+                        <input type="number" id="interval" value="60" min="10">
+                        <span class="hint">How often to check</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="timeout">Timeout (seconds)</label>
+                        <input type="number" id="timeout" value="10" min="1">
+                        <span class="hint">Request timeout</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="codes">Expected Status Codes</label>
+                    <input type="text" id="codes" value="200" placeholder="200,201,204">
+                    <span class="hint">Comma-separated HTTP status codes</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="keywords">Keywords</label>
+                    <input type="text" id="keywords" placeholder="success,healthy">
+                    <span class="hint">Comma-separated keywords to find in response (optional)</span>
+                </div>
+
+                <div id="form-message"></div>
+
+                <button type="submit" class="btn-primary">Add Monitor</button>
+            </form>
+        </div>
+
+        <!-- About Tab -->
+        <div id="about" class="tab-content">
+            <div class="about-content">
+                <div class="about-logo">📊</div>
+                <h2>Statping</h2>
+                <p class="version">Version 1.0.0</p>
+                
+                <p class="description">
+                    A beautiful website monitoring tool with TUI interface and macOS notifications.
+                </p>
+
+                <div class="features">
+                    <h3>Features</h3>
+                    <ul>
+                        <li>🔔 Native macOS notifications</li>
+                        <li>📊 Real-time dashboard with graphs</li>
+                        <li>🖥️ System tray integration</li>
+                        <li>✅ Status code & keyword checks</li>
+                        <li>💾 SQLite storage</li>
+                        <li>🚀 Auto-start on login</li>
+                    </ul>
+                </div>
+
+                <div class="links">
+                    <a href="https://github.com/4nkitd/statping" target="_blank">GitHub</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Add monitor
+        async function addMonitor(e) {
+            e.preventDefault();
+            const msg = document.getElementById('form-message');
+            
+            const data = {
+                name: document.getElementById('name').value,
+                url: document.getElementById('url').value,
+                interval: parseInt(document.getElementById('interval').value) || 60,
+                timeout: parseInt(document.getElementById('timeout').value) || 10,
+                expected_codes: document.getElementById('codes').value || '200',
+                keywords: document.getElementById('keywords').value
+            };
+
+            try {
+                const res = await fetch('/api/monitor/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    msg.className = 'message success';
+                    msg.textContent = '✅ Monitor added successfully!';
+                    document.getElementById('add-form').reset();
+                    document.getElementById('interval').value = '60';
+                    document.getElementById('timeout').value = '10';
+                    document.getElementById('codes').value = '200';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    const err = await res.text();
+                    msg.className = 'message error';
+                    msg.textContent = '❌ ' + err;
+                }
+            } catch (err) {
+                msg.className = 'message error';
+                msg.textContent = '❌ ' + err.message;
+            }
+        }
+
+        // Delete monitor
+        async function deleteMonitor(id, name) {
+            if (!confirm(`Delete "${name}"?`)) return;
+            
+            try {
+                const res = await fetch(`/api/monitor/delete?id=${id}`, {method: 'POST'});
+                if (res.ok) {
+                    document.querySelector(`.monitor-card[data-id="${id}"]`).remove();
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // Toggle monitor
+        async function toggleMonitor(id) {
+            try {
+                const res = await fetch(`/api/monitor/toggle?id=${id}`, {method: 'POST'});
+                if (res.ok) {
+                    location.reload();
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
