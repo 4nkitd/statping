@@ -9,28 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build
-    runs-on: ${{ matrix.os }}
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
     strategy:
       matrix:
         include:
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
+          - goarch: amd64
             suffix: darwin-amd64
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
+          - goarch: arm64
             suffix: darwin-arm64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            suffix: linux-arm64
 
     steps:
       - name: Checkout code
@@ -43,7 +31,7 @@ jobs:
 
       - name: Build
         env:
-          GOOS: ${{ matrix.goos }}
+          GOOS: darwin
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
         run: |
@@ -55,9 +43,41 @@ jobs:
           name: statping-${{ matrix.suffix }}
           path: statping-${{ matrix.suffix }}
 
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Build amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 1
+        run: |
+          go build -ldflags="-s -w" -o statping-linux-amd64 ./cmd/statping
+
+      - name: Upload amd64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: statping-linux-amd64
+          path: statping-linux-amd64
+
   release:
     name: Create Release
-    needs: build
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
