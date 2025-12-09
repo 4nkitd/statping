@@ -7,80 +7,118 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        .detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
         .back-btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
             color: var(--text-secondary);
             text-decoration: none;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            transition: color 0.2s;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            transition: all 0.15s ease;
         }
-        .back-btn:hover { color: var(--accent); }
+        .back-btn:hover { 
+            color: var(--accent); 
+            border-color: var(--accent);
+        }
 
-        .site-header {
+        .site-info {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
+            gap: 0.75rem;
         }
+        
         .site-status {
-            font-size: 2.5rem;
-            line-height: 1;
-        }
-        .site-status.up { color: var(--success); }
-        .site-status.down { color: var(--error); }
-        .site-status.unknown { color: var(--text-secondary); }
-        .site-info h1 {
             font-size: 1.5rem;
-            margin-bottom: 0.25rem;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        .site-status.up { 
+            color: var(--success); 
+            background: rgba(63, 185, 80, 0.15);
+        }
+        .site-status.down { 
+            color: var(--error); 
+            background: rgba(248, 81, 73, 0.15);
+        }
+        .site-status.unknown { 
+            color: var(--text-secondary); 
+            background: var(--bg-tertiary);
+        }
+        
+        .site-text h1 {
+            font-size: 1.25rem;
+            margin: 0 0 0.15rem 0;
         }
         .site-url {
             color: var(--text-secondary);
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
 
         .period-tabs {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
+            display: inline-flex;
+            gap: 0.25rem;
+            background: var(--bg-secondary);
+            padding: 0.25rem;
+            border-radius: 6px;
         }
         .period-tab {
-            padding: 0.5rem 1rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
+            padding: 0.4rem 0.875rem;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
             color: var(--text-secondary);
             cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.2s;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
         }
         .period-tab:hover {
-            border-color: var(--accent);
             color: var(--text-primary);
         }
         .period-tab.active {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: var(--bg-primary);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
 
-        .stats-grid {
+        /* Stats Row - Horizontal across full width */
+        .stats-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
         }
         .stat-card {
-            background: var(--bg-secondary);
+            background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 1rem;
+            border-radius: 8px;
+            padding: 0.875rem 1rem;
             text-align: center;
         }
         .stat-value {
-            font-size: 1.75rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: var(--text-primary);
             line-height: 1.2;
@@ -89,118 +127,46 @@
         .stat-value.warn { color: var(--warning); }
         .stat-value.bad { color: var(--error); }
         .stat-label {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--text-secondary);
-            margin-top: 0.25rem;
+            margin-top: 0.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .chart-container {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .chart-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-        .chart-wrapper {
-            position: relative;
-            height: 250px;
-        }
-
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .incident-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        .incident-item {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 1rem;
-            border-left: 4px solid var(--error);
-        }
-        .incident-item.resolved {
-            border-left-color: var(--success);
-            opacity: 0.8;
-        }
-        .incident-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        .incident-status {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        .incident-status.ongoing {
-            background: rgba(247, 118, 142, 0.2);
-            color: var(--error);
-        }
-        .incident-status.resolved {
-            background: rgba(158, 206, 106, 0.2);
-            color: var(--success);
-        }
-        .incident-time {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-        .incident-error {
-            font-size: 0.9rem;
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-        }
-        .incident-duration {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-
-        .empty-incidents {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-secondary);
-        }
-        .empty-icon {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-        }
-
+        /* Timeline - Full width, compact */
         .uptime-bar-container {
-            margin-bottom: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
         }
         .uptime-bar {
             display: flex;
-            height: 32px;
-            border-radius: 6px;
+            height: 24px;
+            border-radius: 4px;
             overflow: hidden;
             background: var(--bg-tertiary);
-            gap: 2px;
+            gap: 1px;
         }
         .uptime-segment {
             flex: 1;
-            min-width: 4px;
+            min-width: 2px;
             cursor: pointer;
             transition: transform 0.1s;
         }
         .uptime-segment:hover {
-            transform: scaleY(1.1);
+            transform: scaleY(1.15);
         }
         .uptime-segment.up { background: var(--success); }
         .uptime-segment.down { background: var(--error); }
@@ -209,20 +175,124 @@
         .uptime-legend {
             display: flex;
             justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 0.4rem;
+        }
+
+        /* Charts Grid - Side by side */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+        }
+        .chart-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 200px;
+        }
+        .chart-wrapper.small {
+            height: 180px;
+        }
+
+        /* Incidents - Compact grid */
+        .incidents-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+        }
+        
+        .incident-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 0.75rem;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .incident-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            border-left: 3px solid var(--error);
+        }
+        .incident-item.resolved {
+            border-left-color: var(--success);
+            opacity: 0.7;
+        }
+        .incident-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.35rem;
+        }
+        .incident-status {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .incident-status.ongoing {
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--error);
+        }
+        .incident-status.resolved {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--success);
+        }
+        .incident-time {
             font-size: 0.75rem;
             color: var(--text-secondary);
-            margin-top: 0.5rem;
+        }
+        .incident-error {
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            margin-bottom: 0.3rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .incident-duration {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-incidents {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .empty-icon {
+            font-size: 2rem;
+            margin-bottom: 0.4rem;
+            opacity: 0.5;
         }
 
         .loading {
             text-align: center;
-            padding: 2rem;
+            padding: 1.5rem;
             color: var(--text-secondary);
         }
         .spinner {
             display: inline-block;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             border: 2px solid var(--border);
             border-top-color: var(--accent);
             border-radius: 50%;
@@ -231,28 +301,55 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-row {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        @media (max-width: 900px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 768px) {
+            .detail-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .incident-list {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="/" class="back-btn">← Back to Monitors</a>
-
-        <div class="site-header">
-            <div class="site-status {{if eq .Monitor.CurrentStatus "up"}}up{{else if eq .Monitor.CurrentStatus "down"}}down{{else}}unknown{{end}}">
-                {{if eq .Monitor.CurrentStatus "up"}}●{{else if eq .Monitor.CurrentStatus "down"}}●{{else}}○{{end}}
+        <div class="detail-header">
+            <div class="header-left">
+                <a href="/" class="back-btn">← Back</a>
+                <div class="site-info">
+                    <div class="site-status {{if eq .Monitor.CurrentStatus "up"}}up{{else if eq .Monitor.CurrentStatus "down"}}down{{else}}unknown{{end}}">
+                        {{if eq .Monitor.CurrentStatus "up"}}●{{else if eq .Monitor.CurrentStatus "down"}}●{{else}}○{{end}}
+                    </div>
+                    <div class="site-text">
+                        <h1>{{.Monitor.Name}}</h1>
+                        <div class="site-url">{{.Monitor.URL}}</div>
+                    </div>
+                </div>
             </div>
-            <div class="site-info">
-                <h1>{{.Monitor.Name}}</h1>
-                <div class="site-url">{{.Monitor.URL}}</div>
+            <div class="period-tabs">
+                <button class="period-tab active" data-period="24h">Last 24 Hours</button>
+                <button class="period-tab" data-period="7d">Last 7 Days</button>
             </div>
         </div>
 
-        <div class="period-tabs">
-            <button class="period-tab active" data-period="24h">Last 24 Hours</button>
-            <button class="period-tab" data-period="7d">Last 7 Days</button>
-        </div>
-
-        <div class="stats-grid" id="stats-grid">
+        <div class="stats-row" id="stats-grid">
             <div class="stat-card">
                 <div class="stat-value" id="stat-uptime">--</div>
                 <div class="stat-label">Uptime</div>
@@ -288,23 +385,26 @@
             </div>
         </div>
 
-        <div class="chart-container">
-            <div class="chart-title">📈 Response Time</div>
-            <div class="chart-wrapper">
-                <canvas id="responseChart"></canvas>
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title">📈 Response Time</div>
+                <div class="chart-wrapper">
+                    <canvas id="responseChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">📊 Status Codes</div>
+                <div class="chart-wrapper small">
+                    <canvas id="statusChart"></canvas>
+                </div>
             </div>
         </div>
 
-        <div class="chart-container">
-            <div class="chart-title">📊 Status Code Distribution</div>
-            <div class="chart-wrapper" style="height: 200px;">
-                <canvas id="statusChart"></canvas>
+        <div class="incidents-section">
+            <div class="section-title">🚨 Incident History</div>
+            <div id="incidents-list" class="incident-list">
+                <div class="loading"><div class="spinner"></div><p>Loading...</p></div>
             </div>
-        </div>
-
-        <div class="section-title">🚨 Incident History</div>
-        <div id="incidents-list" class="incident-list">
-            <div class="loading"><div class="spinner"></div><p>Loading incidents...</p></div>
         </div>
     </div>
 
@@ -363,8 +463,7 @@
 
         async function loadChecks() {
             try {
-                const limit = currentPeriod === '7d' ? 1000 : 500;
-                const res = await fetch(`/api/monitor/checks?id=${monitorId}&limit=${limit}`);
+                const res = await fetch(`/api/monitor/checks?id=${monitorId}&period=${currentPeriod}`);
                 const checks = await res.json();
                 
                 // Update period labels

@@ -9,15 +9,16 @@
 <body>
     <div class="container">
         <header>
-            <h1>📊 Statping Settings</h1>
-            <p class="subtitle">Manage your website monitors</p>
+            <div class="header-left">
+                <h1>📊 Statping</h1>
+                <p class="subtitle">Website Monitor</p>
+            </div>
+            <div class="tabs">
+                <button class="tab active" data-tab="monitors">Monitors</button>
+                <button class="tab" data-tab="add">Add New</button>
+                <button class="tab" data-tab="about">About</button>
+            </div>
         </header>
-
-        <div class="tabs">
-            <button class="tab active" data-tab="monitors">Monitors</button>
-            <button class="tab" data-tab="add">Add New</button>
-            <button class="tab" data-tab="about">About</button>
-        </div>
 
         <!-- Monitors Tab -->
         <div id="monitors" class="tab-content active">
@@ -32,10 +33,9 @@
                         <div class="monitor-name">{{.Name}}</div>
                         <div class="monitor-url">{{.URL}}</div>
                         <div class="monitor-meta">
-                            <span>Every {{.CheckInterval}}s</span>
-                            <span>•</span>
-                            <span>Codes: {{.ExpectedCodes}}</span>
-                            {{if .Keywords}}<span>•</span><span>Keywords: {{.Keywords}}</span>{{end}}
+                            <span>{{.CheckInterval}}s</span>
+                            <span>{{.ExpectedCodes}}</span>
+                            {{if .Keywords}}<span>{{.Keywords}}</span>{{end}}
                         </div>
                     </div>
                     <div class="monitor-actions" onclick="event.stopPropagation()">
@@ -76,18 +76,16 @@
                     <span class="hint">Full URL including https://</span>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="interval">Interval (seconds)</label>
-                        <input type="number" id="interval" value="60" min="10">
-                        <span class="hint">How often to check</span>
-                    </div>
+                <div class="form-group">
+                    <label for="interval">Interval (seconds)</label>
+                    <input type="number" id="interval" value="60" min="10">
+                    <span class="hint">How often to check</span>
+                </div>
 
-                    <div class="form-group">
-                        <label for="timeout">Timeout (seconds)</label>
-                        <input type="number" id="timeout" value="10" min="1">
-                        <span class="hint">Request timeout</span>
-                    </div>
+                <div class="form-group">
+                    <label for="timeout">Timeout (seconds)</label>
+                    <input type="number" id="timeout" value="10" min="1">
+                    <span class="hint">Request timeout</span>
                 </div>
 
                 <div class="form-group">
@@ -99,7 +97,7 @@
                 <div class="form-group">
                     <label for="keywords">Keywords</label>
                     <input type="text" id="keywords" placeholder="success,healthy">
-                    <span class="hint">Comma-separated keywords to find in response (optional)</span>
+                    <span class="hint">Keywords to find in response (optional)</span>
                 </div>
 
                 <div id="form-message"></div>
@@ -111,28 +109,31 @@
         <!-- About Tab -->
         <div id="about" class="tab-content">
             <div class="about-content">
-                <div class="about-logo">📊</div>
-                <h2>Statping</h2>
-                <p class="version">Version 1.0.0</p>
+                <div class="about-brand">
+                    <div class="about-logo">📊</div>
+                    <div>
+                        <h2>Statping</h2>
+                        <p class="version">Version 1.0.0</p>
+                    </div>
+                </div>
                 
                 <p class="description">
-                    A beautiful website monitoring tool with TUI interface and macOS notifications.
+                    A beautiful website monitoring tool with TUI interface and macOS notifications. Monitor your websites and APIs with ease.
                 </p>
 
                 <div class="features">
                     <h3>Features</h3>
                     <ul>
-                        <li>🔔 Native macOS notifications</li>
-                        <li>📊 Real-time dashboard with graphs</li>
-                        <li>🖥️ System tray integration</li>
-                        <li>✅ Status code & keyword checks</li>
+                        <li>🔔 Native notifications</li>
+                        <li>📊 Real-time dashboard</li>
+                        <li>🖥️ System tray</li>
+                        <li>✅ Status code checks</li>
                         <li>💾 SQLite storage</li>
-                        <li>🚀 Auto-start on login</li>
+                        <li>🚀 Auto-start</li>
                     </ul>
-                </div>
-
-                <div class="links">
-                    <a href="https://github.com/4nkitd/statping" target="_blank">GitHub</a>
+                    <div class="links">
+                        <a href="https://github.com/4nkitd/statping" target="_blank">GitHub Repository →</a>
+                    </div>
                 </div>
             </div>
         </div>

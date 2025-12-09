@@ -324,13 +324,17 @@ func (s *SettingsServer) handleMonitorChecks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	limitStr := r.URL.Query().Get("limit")
-	limit := 500
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-		limit = l
+	// Get period from query params (default 24h)
+	period := r.URL.Query().Get("period")
+	var since time.Time
+	switch period {
+	case "7d":
+		since = time.Now().Add(-7 * 24 * time.Hour)
+	default:
+		since = time.Now().Add(-24 * time.Hour)
 	}
 
-	results, err := s.db.GetRecentCheckResults(uint(id), limit)
+	results, err := s.db.GetCheckResultsSince(uint(id), since)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

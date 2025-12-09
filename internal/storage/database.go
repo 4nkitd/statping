@@ -103,6 +103,14 @@ func (d *Database) GetRecentCheckResults(monitorID uint, limit int) ([]CheckResu
 	return results, err
 }
 
+func (d *Database) GetCheckResultsSince(monitorID uint, since time.Time) ([]CheckResult, error) {
+	var results []CheckResult
+	err := d.db.Where("monitor_id = ? AND created_at >= ?", monitorID, since).
+		Order("created_at desc").
+		Find(&results).Error
+	return results, err
+}
+
 func (d *Database) GetCheckResultStats(monitorID uint, since time.Time) (total, successful int64, avgResponseTime float64, err error) {
 	err = d.db.Model(&CheckResult{}).
 		Where("monitor_id = ? AND created_at >= ?", monitorID, since).
