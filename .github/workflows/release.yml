@@ -75,9 +75,43 @@ jobs:
           name: statping-linux-amd64
           path: statping-linux-amd64
 
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            suffix: windows-amd64
+          - goarch: arm64
+            suffix: windows-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: |
+          go build -ldflags="-s -w -H windowsgui" -o statping-${{ matrix.suffix }}.exe ./cmd/statping
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: statping-${{ matrix.suffix }}
+          path: statping-${{ matrix.suffix }}.exe
+
   release:
     name: Create Release
-    needs: [build-macos, build-linux]
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -95,15 +129,26 @@ jobs:
             cp "$dir"* ./release/ 2>/dev/null || true
           done
           cd release
-          for f in statping-*; do
-            chmod +x "$f"
-            tar -czvf "${f}.tar.gz" "$f"
+          # Compress Unix binaries
+          for f in statping-darwin-* statping-linux-*; do
+            if [ -f "$f" ]; then
+              chmod +x "$f"
+              tar -czvf "${f}.tar.gz" "$f"
+            fi
+          done
+          # Compress Windows binaries
+          for f in statping-windows-*.exe; do
+            if [ -f "$f" ]; then
+              zip "${f%.exe}.zip" "$f"
+            fi
           done
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release/*.tar.gz
+          files: |
+            release/*.tar.gz
+            release/*.zip
           generate_release_notes: true
           draft: false
           prerelease: false
