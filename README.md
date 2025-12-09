@@ -17,13 +17,34 @@ A beautiful terminal-based website monitoring tool with TUI interface, system tr
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
 ```bash
-# Build from source
+# Add the tap
+brew tap 4nkitd/statping https://github.com/4nkitd/statping
+
+# Install
+brew install statping
+```
+
+### Download Binary
+
+Download the latest release from [GitHub Releases](https://github.com/4nkitd/statping/releases):
+
+- **macOS (Apple Silicon):** `statping-darwin-arm64.tar.gz`
+- **macOS (Intel):** `statping-darwin-amd64.tar.gz`
+- **Linux:** `statping-linux-amd64.tar.gz`
+- **Windows:** `statping-windows-amd64.zip`
+
+### Build from Source
+
+```bash
+# Clone and build
+git clone https://github.com/4nkitd/statping.git
+cd statping
 go build -o statping ./cmd/statping
 
 # Move to PATH
-cp statping ~/bin/
-# or
 sudo mv statping /usr/local/bin/
 ```
 

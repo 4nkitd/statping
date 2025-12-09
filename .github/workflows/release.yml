@@ -154,3 +154,44 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Calculate SHA256 checksums
+        id: checksums
+        run: |
+          cd artifacts
+          echo "darwin_amd64_sha=$(sha256sum statping-darwin-amd64/statping-darwin-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "darwin_arm64_sha=$(sha256sum statping-darwin-arm64/statping-darwin-arm64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_amd64_sha=$(sha256sum statping-linux-amd64/statping-linux-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/statping.rb
+          sed -i "s/PLACEHOLDER_DARWIN_AMD64_SHA256/${{ steps.checksums.outputs.darwin_amd64_sha }}/" Formula/statping.rb
+          sed -i "s/PLACEHOLDER_DARWIN_ARM64_SHA256/${{ steps.checksums.outputs.darwin_arm64_sha }}/" Formula/statping.rb
+          sed -i "s/PLACEHOLDER_LINUX_AMD64_SHA256/${{ steps.checksums.outputs.linux_amd64_sha }}/" Formula/statping.rb
+          # For Linux ARM64, use amd64 as fallback if not built
+          sed -i "s/PLACEHOLDER_LINUX_ARM64_SHA256/${{ steps.checksums.outputs.linux_amd64_sha }}/" Formula/statping.rb
+
+      - name: Commit updated formula
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/statping.rb
+          git commit -m "chore: update Homebrew formula for ${GITHUB_REF#refs/tags/}" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
