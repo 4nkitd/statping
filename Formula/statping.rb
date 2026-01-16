@@ -1,7 +1,7 @@
 class Statping < Formula
   desc "Beautiful terminal-based website monitoring tool with notifications"
   homepage "https://github.com/4nkitd/statping"
-  version "1.0.0"
+  version "1.1.2"
   license "MIT"
 
   on_macos do
