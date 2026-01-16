@@ -40,3 +40,4 @@ go.work.sum
 # Temp files
 tmp/
 temp/
+build

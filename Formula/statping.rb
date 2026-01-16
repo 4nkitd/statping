@@ -7,10 +7,10 @@ class Statping < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-arm64.tar.gz"
-      sha256 "PLACEHOLDER_DARWIN_ARM64_SHA256"
+      sha256 "9c765ea8507b865b4198677b76f266b7d566d384416e6de948b252dc8c69ff88"
     else
       url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-amd64.tar.gz"
-      sha256 "PLACEHOLDER_DARWIN_AMD64_SHA256"
+      sha256 "ca689e570877c9eee8aebad649550a7d4d68c30a1a9c7dde9ec0dacd74f2b2ec"
     end
   end
 
