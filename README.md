@@ -2,6 +2,8 @@
 
 A beautiful terminal-based website monitoring tool with TUI interface, system tray support, and macOS notifications.
 
+> **Not related to [statping/statping](https://github.com/statping/statping).** That project is a self-hosted web-UI uptime monitor. This is a local-first CLI/TUI + macOS menu-bar app — different audience, different design.
+
 ## Features
 
 - 📊 **Beautiful TUI** - Interactive terminal interface using Bubble Tea
