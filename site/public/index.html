@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statping — uptime monitoring in your menu bar</title>
+  <meta name="description" content="A beautiful terminal + menu bar website monitor. Internet-aware checks, confirmed-down alerts, live dashboard, and incident history — local-first, no cloud." />
+  <meta property="og:title" content="Statping — uptime monitoring in your menu bar" />
+  <meta property="og:description" content="Internet-aware website monitoring with a beautiful terminal dashboard and a menu-bar traffic light." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+</head>
+<body>
+
+  <nav>
+    <div class="wrap nav-inner">
+      <div class="brand">
+        <span class="tl sm live"><span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span></span>
+        Statping
+      </div>
+      <div class="nav-links">
+        <a href="#features" class="hide-sm">Features</a>
+        <a href="#internet" class="hide-sm">Internet-aware</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/4nkitd/statping" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Local-first uptime monitoring</span>
+        <h1>Know when your <span class="accent">site</span> is down —<br />not when your <span class="accent">wifi</span> is.</h1>
+        <p class="lead">
+          Statping watches your websites and APIs from a beautiful terminal dashboard
+          and a menu-bar traffic light. It confirms failures before it alerts you, and
+          when <em>your</em> connection drops, it pauses instead of crying wolf.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">⬇ Install Statping</a>
+          <a class="btn btn-ghost" href="https://github.com/4nkitd/statping" target="_blank" rel="noopener">★ Star on GitHub</a>
+        </div>
+        <div class="install-pill">
+          <span class="prompt">$</span>
+          <span id="brewcmd">brew install 4nkitd/statping/statping</span>
+          <button onclick="copyText('brew install 4nkitd/statping/statping', this)">Copy</button>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="tl-hero" title="All systems operational">
+          <span class="lamp r"></span>
+          <span class="lamp y"></span>
+          <span class="lamp g"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="strip">
+        <div class="item"><span class="dot g"></span> <b>Internet-aware</b> checks</div>
+        <div class="item"><span class="dot b"></span> Native <b>desktop alerts</b></div>
+        <div class="item"><span class="dot i"></span> <b>SQLite</b> · no cloud, no account</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- DASHBOARD MOCKUP -->
+  <section id="dashboard">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">The dashboard</span>
+        <h2>A status page that lives in your terminal</h2>
+        <p>Live response-time sparklines, uptime, and incident state for every monitor — in a responsive grid that scales from one site to fifty.</p>
+      </div>
+
+      <div class="mockup">
+        <div class="titlebar">
+          <span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>
+          <span class="tt">statping dashboard</span>
+        </div>
+        <div class="body">
+          <div class="dash-head">
+            <strong>📊 STATPING DASHBOARD</strong>
+            <span class="pill on">● online</span>
+            <span class="pill">6 up</span>
+            <span class="pill">0 down</span>
+          </div>
+          <div class="dash-grid" id="dashGrid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">What's inside</span>
+        <h2>Everything you need, nothing you don't</h2>
+        <p>Built for developers who want fast, honest monitoring without a SaaS subscription.</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <div class="ic">🌐</div>
+          <h3>Internet-aware checks</h3>
+          <p>If your machine loses connectivity, Statping pauses monitoring instead of marking every site down. No false alarms from a flaky hotspot.</p>
+        </div>
+        <div class="feature">
+          <div class="ic">🔔</div>
+          <h3>Confirmed-down alerts</h3>
+          <p>Alerts fire only after a configurable number of consecutive real failures — with a cooldown — so one blip never wakes you up.</p>
+        </div>
+        <div class="feature">
+          <div class="ic">🚦</div>
+          <h3>Menu-bar traffic light</h3>
+          <p>A glanceable traffic-light icon: green when all is well, amber when paused or slow, red when something's actually down.</p>
+        </div>
+        <div class="feature">
+          <div class="ic">📈</div>
+          <h3>Live TUI dashboard</h3>
+          <p>Response-time sparklines, uptime %, and per-monitor metrics in a responsive grid — keyboard-driven and buttery smooth.</p>
+        </div>
+        <div class="feature">
+          <div class="ic">🚨</div>
+          <h3>Incident history</h3>
+          <p>Every outage is recorded with start, resolve, and duration. See exactly when and how long each site was down.</p>
+        </div>
+        <div class="feature">
+          <div class="ic">💾</div>
+          <h3>Local-first &amp; private</h3>
+          <p>Everything lives in a local SQLite file. No accounts, no telemetry, no cloud bill. Your monitoring stays yours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERNET-AWARE SPOTLIGHT -->
+  <section id="internet" class="spotlight">
+    <div class="wrap spot-grid">
+      <div>
+        <span class="eyebrow">The difference</span>
+        <h2>It knows when <em>you're</em> the one offline</h2>
+        <p>
+          Most monitors hammer your endpoints and scream "DOWN!" the instant a request fails —
+          even when the real problem is your train going through a tunnel.
+        </p>
+        <p>
+          Statping checks connectivity to trusted anchors first. If the system is offline,
+          it suppresses failures entirely — no incidents, no notifications, no polluted uptime —
+          and resumes the moment you're back.
+        </p>
+      </div>
+      <div class="compare">
+        <div class="cmp-row bad">
+          <span class="mk">🚫</span>
+          <div class="t"><b>Other tools</b><span>Wifi drops → 12 sites instantly "DOWN" → 12 false alerts → noise you learn to ignore.</span></div>
+        </div>
+        <div class="cmp-row good">
+          <span class="mk">✅</span>
+          <div class="t"><b>Statping</b><span>Wifi drops → detects you're offline → "Monitoring paused — no internet" → silence until you're back.</span></div>
+        </div>
+        <div class="cmp-row good">
+          <span class="mk">🎯</span>
+          <div class="t"><b>Only real outages</b><span>Confirmed failures over multiple checks open an incident and notify once — accurate uptime you can trust.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section id="install">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Get started</span>
+        <h2>Up and running in 30 seconds</h2>
+        <p>macOS, Linux, and Windows builds. Add a monitor and drop it in your menu bar.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tabbtn active" data-tab="brew">Homebrew</button>
+        <button class="tabbtn" data-tab="src">From source</button>
+      </div>
+
+      <div class="tabpane active" id="brew">
+        <div class="codeblock">
+          <button class="copy" onclick="copyBlock(this)">Copy</button>
+<span class="ln"><span class="c"># Add the tap and install</span></span>
+<span class="ln"><span class="p">$</span> brew tap 4nkitd/statping https://github.com/4nkitd/statping</span>
+<span class="ln"><span class="p">$</span> brew install statping</span>
+<span class="ln"></span>
+<span class="ln"><span class="c"># Add a monitor and launch the menu-bar app</span></span>
+<span class="ln"><span class="p">$</span> statping add https://example.com -n "My Site"</span>
+<span class="ln"><span class="p">$</span> statping tray</span>
+        </div>
+      </div>
+
+      <div class="tabpane" id="src">
+        <div class="codeblock">
+          <button class="copy" onclick="copyBlock(this)">Copy</button>
+<span class="ln"><span class="p">$</span> git clone https://github.com/4nkitd/statping.git</span>
+<span class="ln"><span class="p">$</span> cd statping</span>
+<span class="ln"><span class="p">$</span> go build -o statping ./cmd/statping</span>
+<span class="ln"><span class="p">$</span> ./statping dashboard</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <div class="wrap">
+      <div class="tl live" style="margin: 0 auto 1.5rem; width: max-content;">
+        <span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span>
+      </div>
+      <h2>Green means go.</h2>
+      <p>Start monitoring the honest way — free and open source.</p>
+      <div class="cta-row" style="justify-content:center;">
+        <a class="btn btn-primary" href="https://github.com/4nkitd/statping" target="_blank" rel="noopener">Get Statping on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <div class="brand">
+        <span class="tl sm live"><span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span></span>
+        Statping
+      </div>
+      <div>Built for developers · MIT licensed · Local-first</div>
+      <div><a href="https://github.com/4nkitd/statping" target="_blank" rel="noopener">github.com/4nkitd/statping</a></div>
+    </div>
+  </footer>
+
+  <script>
+    // Tab switching for install section
+    document.querySelectorAll('.tabbtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabbtn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tabpane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    function copyText(text, el) {
+      navigator.clipboard.writeText(text).then(() => flash(el));
+    }
+    function copyBlock(el) {
+      const lines = [...el.parentElement.querySelectorAll('.ln')]
+        .map(l => l.textContent.replace(/^\$\s?/, '').trim())
+        .filter(t => t && !t.startsWith('#'));
+      navigator.clipboard.writeText(lines.join('\n')).then(() => flash(el));
+    }
+    function flash(el) {
+      const old = el.textContent; el.textContent = 'Copied ✓';
+      setTimeout(() => el.textContent = old, 1400);
+    }
+
+    // Build the dashboard mockup sparkline cards
+    const monitors = [
+      { name: 'Paytring Health', up: true, uptime: '100.0%', avg: '271ms' },
+      { name: 'Paytring API',    up: true, uptime: '100.0%', avg: '349ms' },
+      { name: 'Breeze',          up: true, uptime: '99.9%',  avg: '247ms' },
+      { name: 'Webhooks',        up: true, uptime: '100.0%', avg: '249ms' },
+      { name: 'Umami',           up: true, uptime: '100.0%', avg: '114ms' },
+      { name: 'Sentry',          up: true, uptime: '99.8%',  avg: '180ms' },
+    ];
+    function bars() {
+      let out = '';
+      for (let i = 0; i < 28; i++) {
+        const h = 6 + Math.round(Math.random() * 22);
+        const c = h < 14 ? 'var(--green)' : h < 22 ? 'var(--amber)' : '#ff8c3a';
+        out += `<i style="height:${h}px;background:${c}"></i>`;
+      }
+      return out;
+    }
+    document.getElementById('dashGrid').innerHTML = monitors.map(m => `
+      <div class="mcard ${m.up ? 'up' : 'down'}">
+        <div class="row1"><span class="st ${m.up ? 'up' : 'down'}">●</span>
+          <span class="nm">${m.name}</span>
+          <span class="st ${m.up ? 'up' : 'down'} right">${m.up ? 'UP' : 'DOWN'}</span>
+        </div>
+        <div class="spark">${bars()}</div>
+        <div class="metrics">
+          <div><b>${m.uptime}</b>uptime</div>
+          <div><b>${m.avg}</b>avg</div>
+          <div><b>60s</b>interval</div>
+        </div>
+      </div>`).join('');
+  </script>
+</body>
+</html>
