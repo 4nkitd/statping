@@ -38,7 +38,7 @@ func (m *detailModel) refresh() {
 		m.monitor = mon
 	}
 
-	results, err := m.db.GetRecentCheckResults(m.monitor.ID, 10)
+	results, err := m.db.GetRecentCheckResults(m.monitor.ID, 60)
 	if err == nil {
 		m.checkResults = results
 	}
@@ -90,6 +90,14 @@ func (m detailModel) View() string {
 	b.WriteString(fmt.Sprintf("%d seconds", m.monitor.Timeout))
 	b.WriteString("\n")
 
+	b.WriteString(infoStyle.Render("Failures Before Down: "))
+	maxFailures := m.monitor.MaxFailures
+	if maxFailures < 1 {
+		maxFailures = 3
+	}
+	b.WriteString(fmt.Sprintf("%d", maxFailures))
+	b.WriteString("\n")
+
 	b.WriteString(infoStyle.Render("Expected Codes: "))
 	b.WriteString(m.monitor.ExpectedCodes)
 	b.WriteString("\n")
@@ -128,12 +136,27 @@ func (m detailModel) View() string {
 		b.WriteString("No data available\n")
 	}
 
+	if len(m.checkResults) > 0 {
+		b.WriteString("\n")
+		b.WriteString(titleStyle.Render("Response Time (last 60 checks)"))
+		b.WriteString("\n")
+		bars, maxTime := sparkline(m.checkResults, 60)
+		b.WriteString(bars)
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("244")).
+			Render(fmt.Sprintf(" (0-%dms)", maxTime)))
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("Recent Checks"))
 	b.WriteString("\n")
 
 	if len(m.checkResults) > 0 {
-		for _, cr := range m.checkResults {
+		recent := m.checkResults
+		if len(recent) > 10 {
+			recent = recent[:10]
+		}
+		for _, cr := range recent {
 			statusIcon := "✓"
 			if !cr.Success {
 				statusIcon = "✗"

@@ -11,6 +11,14 @@ const (
 	DefaultTimeout       = 10
 	DefaultMaxFailures   = 3
 	NotificationCooldown = 300
+
+	CheckResultRetentionDays = 30
+
+	// Connectivity detection: how often to probe internet access and how long
+	// each probe may take. When offline, monitor failures are not treated as the
+	// site being down.
+	ConnectivityCheckInterval = 10
+	ConnectivityTimeout       = 2
 )
 
 func GetConfigDir() (string, error) {

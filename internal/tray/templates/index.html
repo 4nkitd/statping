@@ -20,34 +20,46 @@
             </div>
         </header>
 
+        <!-- Status Banner -->
+        <div id="status-banner" class="status-banner">
+            <div class="status-pill" id="conn-pill">
+                <span class="dot"></span><span id="conn-text">Checking…</span>
+            </div>
+            <div class="status-counts">
+                <span class="count up"><b id="count-up">0</b> up</span>
+                <span class="count down"><b id="count-down">0</b> down</span>
+                <span class="count unknown"><b id="count-unknown">0</b> pending</span>
+            </div>
+            <div class="status-updated" id="status-updated"></div>
+        </div>
+
         <!-- Monitors Tab -->
         <div id="monitors" class="tab-content active">
             <div class="monitors-list">
                 {{if .Monitors}}
                 {{range .Monitors}}
                 <div class="monitor-card" data-id="{{.ID}}" onclick="openMonitorDetail({{.ID}}, event)">
-                    <div class="monitor-status {{if eq .CurrentStatus "up"}}up{{else if eq .CurrentStatus "down"}}down{{else}}unknown{{end}}">
+                    <div class="monitor-status {{if eq .CurrentStatus "up"}}up{{else if eq .CurrentStatus "down"}}down{{else}}unknown{{end}}" data-status-for="{{.ID}}">
                         {{if eq .CurrentStatus "up"}}●{{else if eq .CurrentStatus "down"}}●{{else}}○{{end}}
                     </div>
                     <div class="monitor-info">
                         <div class="monitor-name">{{.Name}}</div>
                         <div class="monitor-url">{{.URL}}</div>
                         <div class="monitor-meta">
+                            <span class="badge-uptime" data-uptime-for="{{.ID}}">—</span>
+                            <span class="badge-latency" data-latency-for="{{.ID}}">—</span>
                             <span>{{.CheckInterval}}s</span>
                             <span>{{.ExpectedCodes}}</span>
-                            {{if .Keywords}}<span>{{.Keywords}}</span>{{end}}
+                            {{if .Keywords}}<span title="keyword">🔍 {{.Keywords}}</span>{{end}}
                         </div>
                     </div>
                     <div class="monitor-actions" onclick="event.stopPropagation()">
-                        <button class="btn-icon view-btn" title="View Details" onclick="openMonitorDetail({{.ID}}, event)">
-                            📊
-                        </button>
+                        <button class="btn-icon view-btn" title="View Details" onclick="openMonitorDetail({{.ID}}, event)">📊</button>
+                        <button class="btn-icon edit-btn" title="Edit" onclick="editMonitor({{.ID}})">✏️</button>
                         <button class="btn-icon toggle-btn" title="Toggle" onclick="toggleMonitor({{.ID}})">
                             {{if .Enabled}}⏸{{else}}▶{{end}}
                         </button>
-                        <button class="btn-icon delete-btn" title="Delete" onclick="deleteMonitor({{.ID}}, '{{.Name}}')">
-                            🗑
-                        </button>
+                        <button class="btn-icon delete-btn" title="Delete" onclick="deleteMonitor({{.ID}}, '{{.Name}}')">🗑</button>
                     </div>
                 </div>
                 {{end}}
@@ -61,16 +73,19 @@
             </div>
         </div>
 
-        <!-- Add New Tab -->
+        <!-- Add / Edit Tab -->
         <div id="add" class="tab-content">
-            <form id="add-form" onsubmit="addMonitor(event)">
-                <div class="form-group">
+            <form id="add-form" onsubmit="submitMonitor(event)">
+                <h3 id="form-title" class="form-title">Add Monitor</h3>
+                <input type="hidden" id="edit-id" value="">
+
+                <div class="form-group full-width">
                     <label for="name">Name</label>
                     <input type="text" id="name" placeholder="My Website">
                     <span class="hint">Display name for this monitor</span>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group full-width">
                     <label for="url">URL <span class="required">*</span></label>
                     <input type="url" id="url" placeholder="https://example.com" required>
                     <span class="hint">Full URL including https://</span>
@@ -89,12 +104,18 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="failures">Failures Before Down</label>
+                    <input type="number" id="failures" value="3" min="1">
+                    <span class="hint">Consecutive failures before alerting</span>
+                </div>
+
+                <div class="form-group">
                     <label for="codes">Expected Status Codes</label>
                     <input type="text" id="codes" value="200" placeholder="200,201,204">
                     <span class="hint">Comma-separated HTTP status codes</span>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group full-width">
                     <label for="keywords">Keywords</label>
                     <input type="text" id="keywords" placeholder="success,healthy">
                     <span class="hint">Keywords to find in response (optional)</span>
@@ -102,7 +123,8 @@
 
                 <div id="form-message"></div>
 
-                <button type="submit" class="btn-primary">Add Monitor</button>
+                <button type="submit" class="btn-primary" id="form-submit">Add Monitor</button>
+                <button type="button" class="btn-secondary" id="form-cancel" onclick="resetForm()" style="display:none">Cancel Edit</button>
             </form>
         </div>
 
@@ -113,23 +135,24 @@
                     <div class="about-logo">📊</div>
                     <div>
                         <h2>Statping</h2>
-                        <p class="version">Version 1.0.0</p>
+                        <p class="version">Version 1.1.0</p>
                     </div>
                 </div>
-                
+
                 <p class="description">
-                    A beautiful website monitoring tool with TUI interface and macOS notifications. Monitor your websites and APIs with ease.
+                    A website monitoring tool with a terminal dashboard, system tray, and native notifications.
+                    Connectivity-aware: when your machine is offline, monitoring pauses instead of falsely reporting sites down.
                 </p>
 
                 <div class="features">
                     <h3>Features</h3>
                     <ul>
-                        <li>🔔 Native notifications</li>
-                        <li>📊 Real-time dashboard</li>
+                        <li>🌐 Internet-aware checks</li>
+                        <li>🔔 Confirmed-down alerts</li>
+                        <li>📊 Live dashboard</li>
                         <li>🖥️ System tray</li>
-                        <li>✅ Status code checks</li>
-                        <li>💾 SQLite storage</li>
-                        <li>🚀 Auto-start</li>
+                        <li>✅ Status & keyword checks</li>
+                        <li>🚨 Incident history</li>
                     </ul>
                     <div class="links">
                         <a href="https://github.com/4nkitd/statping" target="_blank">GitHub Repository →</a>
@@ -150,22 +173,120 @@
             });
         });
 
-        // Add monitor
-        async function addMonitor(e) {
+        function activateTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === name));
+        }
+
+        // ---- Live status polling ----
+        function latencyClass(ms) {
+            if (ms <= 0) return '';
+            if (ms < 300) return 'good';
+            if (ms < 1000) return 'warn';
+            return 'bad';
+        }
+
+        async function pollStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                document.getElementById('count-up').textContent = data.up;
+                document.getElementById('count-down').textContent = data.down;
+                document.getElementById('count-unknown').textContent = data.unknown;
+
+                const pill = document.getElementById('conn-pill');
+                const ctext = document.getElementById('conn-text');
+                if (data.online) {
+                    pill.className = 'status-pill online';
+                    ctext.textContent = 'Online';
+                } else {
+                    pill.className = 'status-pill offline';
+                    ctext.textContent = 'No internet — monitoring paused';
+                }
+                document.getElementById('status-updated').textContent =
+                    'Updated ' + new Date().toLocaleTimeString();
+
+                (data.monitors || []).forEach(m => {
+                    const dot = document.querySelector(`[data-status-for="${m.id}"]`);
+                    if (dot) {
+                        dot.className = 'monitor-status ' + (m.status === 'up' ? 'up' : m.status === 'down' ? 'down' : 'unknown');
+                        dot.textContent = m.status === 'unknown' ? '○' : '●';
+                    }
+                    const up = document.querySelector(`[data-uptime-for="${m.id}"]`);
+                    if (up) up.textContent = m.uptime > 0 ? m.uptime.toFixed(1) + '% up' : '—';
+                    const lat = document.querySelector(`[data-latency-for="${m.id}"]`);
+                    if (lat) {
+                        lat.textContent = m.response_time > 0 ? m.response_time + 'ms' : '—';
+                        lat.className = 'badge-latency ' + latencyClass(m.response_time);
+                    }
+                });
+            } catch (err) { /* ignore transient errors */ }
+        }
+        pollStatus();
+        setInterval(pollStatus, 5000);
+
+        // ---- Add / Edit ----
+        function resetForm() {
+            document.getElementById('edit-id').value = '';
+            document.getElementById('add-form').reset();
+            document.getElementById('interval').value = '60';
+            document.getElementById('timeout').value = '10';
+            document.getElementById('failures').value = '3';
+            document.getElementById('codes').value = '200';
+            document.getElementById('form-title').textContent = 'Add Monitor';
+            document.getElementById('form-submit').textContent = 'Add Monitor';
+            document.getElementById('form-cancel').style.display = 'none';
+            document.getElementById('form-message').textContent = '';
+            document.getElementById('form-message').className = '';
+        }
+
+        async function editMonitor(id) {
+            try {
+                const res = await fetch(`/api/monitor/get?id=${id}`);
+                if (!res.ok) return;
+                const m = await res.json();
+                document.getElementById('edit-id').value = m.id;
+                document.getElementById('name').value = m.name;
+                document.getElementById('url').value = m.url;
+                document.getElementById('interval').value = m.check_interval;
+                document.getElementById('timeout').value = m.timeout;
+                document.getElementById('failures').value = m.max_failures || 3;
+                document.getElementById('codes').value = m.expected_codes || '200';
+                document.getElementById('keywords').value = m.keywords || '';
+                document.getElementById('form-title').textContent = 'Edit Monitor';
+                document.getElementById('form-submit').textContent = 'Save Changes';
+                document.getElementById('form-cancel').style.display = 'inline-block';
+                activateTab('add');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function submitMonitor(e) {
             e.preventDefault();
             const msg = document.getElementById('form-message');
-            
+            const editId = document.getElementById('edit-id').value;
+
             const data = {
                 name: document.getElementById('name').value,
                 url: document.getElementById('url').value,
                 interval: parseInt(document.getElementById('interval').value) || 60,
                 timeout: parseInt(document.getElementById('timeout').value) || 10,
+                max_failures: parseInt(document.getElementById('failures').value) || 3,
                 expected_codes: document.getElementById('codes').value || '200',
                 keywords: document.getElementById('keywords').value
             };
 
+            let url = '/api/monitor/add';
+            if (editId) {
+                url = '/api/monitor/edit';
+                data.id = parseInt(editId);
+            }
+
             try {
-                const res = await fetch('/api/monitor/add', {
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data)
@@ -173,12 +294,8 @@
 
                 if (res.ok) {
                     msg.className = 'message success';
-                    msg.textContent = '✅ Monitor added successfully!';
-                    document.getElementById('add-form').reset();
-                    document.getElementById('interval').value = '60';
-                    document.getElementById('timeout').value = '10';
-                    document.getElementById('codes').value = '200';
-                    setTimeout(() => location.reload(), 1000);
+                    msg.textContent = editId ? '✅ Changes saved!' : '✅ Monitor added!';
+                    setTimeout(() => location.reload(), 800);
                 } else {
                     const err = await res.text();
                     msg.className = 'message error';
@@ -190,33 +307,28 @@
             }
         }
 
-        // Delete monitor
         async function deleteMonitor(id, name) {
             if (!confirm(`Delete "${name}"?`)) return;
-            
             try {
                 const res = await fetch(`/api/monitor/delete?id=${id}`, {method: 'POST'});
                 if (res.ok) {
-                    document.querySelector(`.monitor-card[data-id="${id}"]`).remove();
+                    const card = document.querySelector(`.monitor-card[data-id="${id}"]`);
+                    if (card) card.remove();
                 }
             } catch (err) {
                 alert('Error: ' + err.message);
             }
         }
 
-        // Toggle monitor
         async function toggleMonitor(id) {
             try {
                 const res = await fetch(`/api/monitor/toggle?id=${id}`, {method: 'POST'});
-                if (res.ok) {
-                    location.reload();
-                }
+                if (res.ok) location.reload();
             } catch (err) {
                 alert('Error: ' + err.message);
             }
         }
 
-        // Open monitor detail view
         function openMonitorDetail(id, event) {
             if (event) event.stopPropagation();
             window.location.href = `/site/${id}`;

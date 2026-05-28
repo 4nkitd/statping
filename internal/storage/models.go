@@ -15,6 +15,7 @@ type Monitor struct {
 	ExpectedCodes    string        `json:"expected_codes"`
 	Keywords         string        `json:"keywords"`
 	Timeout          int           `gorm:"default:10" json:"timeout"`
+	MaxFailures      int           `gorm:"default:3" json:"max_failures"`
 	CurrentStatus    string        `gorm:"default:unknown" json:"current_status"`
 	ConsecutiveFails int           `json:"consecutive_fails"`
 	LastCheckAt      *time.Time    `json:"last_check_at"`

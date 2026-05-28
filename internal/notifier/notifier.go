@@ -43,6 +43,26 @@ func (n *Notifier) NotifyRecovery(name, url string) {
 	}
 }
 
+func (n *Notifier) NotifySystemOffline() {
+	if !n.enabled {
+		return
+	}
+
+	if err := beeep.Notify("🌐 No internet connection", "Monitoring paused — your system appears to be offline.", ""); err != nil {
+		log.Printf("Failed to send notification: %v", err)
+	}
+}
+
+func (n *Notifier) NotifySystemOnline() {
+	if !n.enabled {
+		return
+	}
+
+	if err := beeep.Notify("🌐 Internet restored", "Connection is back — monitoring resumed.", ""); err != nil {
+		log.Printf("Failed to send notification: %v", err)
+	}
+}
+
 func (n *Notifier) SetEnabled(enabled bool) {
 	n.enabled = enabled
 }

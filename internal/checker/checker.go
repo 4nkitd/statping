@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"sync"
@@ -14,6 +15,12 @@ import (
 	"github.com/ankityadav/statping/internal/storage"
 )
 
+func logIfErr(action string, err error) {
+	if err != nil {
+		log.Printf("checker: %s failed: %v", action, err)
+	}
+}
+
 type Checker struct {
 	db       *storage.Database
 	notifier *notifier.Notifier
@@ -22,12 +29,18 @@ type Checker struct {
 	wg       sync.WaitGroup
 	mu       sync.RWMutex
 	monitors map[uint]*monitorState
+
+	onlineMu sync.RWMutex
+	online   bool
+
+	onUpdate func()
 }
 
 type monitorState struct {
 	monitor      *storage.Monitor
 	ticker       *time.Ticker
 	stopChan     chan struct{}
+	trigger      chan struct{}
 	lastNotified time.Time
 }
 
@@ -40,6 +53,67 @@ func New(db *storage.Database, n *notifier.Notifier) *Checker {
 		},
 		stopChan: make(chan struct{}),
 		monitors: make(map[uint]*monitorState),
+		online:   true,
+	}
+}
+
+// SetOnUpdate registers a callback invoked after each check completes. Useful
+// for UIs (e.g. the tray) that need to refresh when statuses change.
+func (c *Checker) SetOnUpdate(fn func()) {
+	c.onUpdate = fn
+}
+
+func (c *Checker) notifyUpdate() {
+	if c.onUpdate != nil {
+		c.onUpdate()
+	}
+}
+
+// Online reports whether the checker currently considers the system to have
+// internet connectivity.
+func (c *Checker) Online() bool {
+	c.onlineMu.RLock()
+	defer c.onlineMu.RUnlock()
+	return c.online
+}
+
+// setOnline updates connectivity state and fires notifications on transitions.
+func (c *Checker) setOnline(v bool) {
+	c.onlineMu.Lock()
+	changed := c.online != v
+	c.online = v
+	c.onlineMu.Unlock()
+
+	if !changed {
+		return
+	}
+
+	if v {
+		log.Printf("checker: internet connectivity restored")
+		c.notifier.NotifySystemOnline()
+	} else {
+		log.Printf("checker: internet connectivity lost — monitoring paused")
+		c.notifier.NotifySystemOffline()
+	}
+	c.notifyUpdate()
+}
+
+func (c *Checker) runConnectivityWatch() {
+	defer c.wg.Done()
+
+	interval := time.Duration(config.ConnectivityCheckInterval) * time.Second
+	timeout := time.Duration(config.ConnectivityTimeout) * time.Second
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.setOnline(IsOnline(timeout))
+		case <-c.stopChan:
+			return
+		}
 	}
 }
 
@@ -54,12 +128,48 @@ func (c *Checker) Start(ctx context.Context) error {
 		c.startMonitor(&monitor)
 	}
 
+	c.wg.Add(1)
+	go c.runPruner()
+
+	c.wg.Add(1)
+	go c.runConnectivityWatch()
+
 	go func() {
 		<-ctx.Done()
 		c.Stop()
 	}()
 
 	return nil
+}
+
+func (c *Checker) runPruner() {
+	defer c.wg.Done()
+
+	c.prune()
+
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.prune()
+		case <-c.stopChan:
+			return
+		}
+	}
+}
+
+func (c *Checker) prune() {
+	before := time.Now().AddDate(0, 0, -config.CheckResultRetentionDays)
+	deleted, err := c.db.PruneCheckResults(before)
+	if err != nil {
+		logIfErr("prune check results", err)
+		return
+	}
+	if deleted > 0 {
+		log.Printf("checker: pruned %d check results older than %d days", deleted, config.CheckResultRetentionDays)
+	}
 }
 
 func (c *Checker) Stop() {
@@ -97,6 +207,7 @@ func (c *Checker) startMonitor(m *storage.Monitor) {
 		monitor:  m,
 		ticker:   time.NewTicker(interval),
 		stopChan: make(chan struct{}),
+		trigger:  make(chan struct{}, 1),
 	}
 	c.monitors[m.ID] = ms
 
@@ -113,6 +224,8 @@ func (c *Checker) runMonitor(ms *monitorState) {
 		select {
 		case <-ms.ticker.C:
 			c.performCheck(ms.monitor)
+		case <-ms.trigger:
+			c.performCheck(ms.monitor)
 		case <-ms.stopChan:
 			return
 		case <-c.stopChan:
@@ -121,8 +234,72 @@ func (c *Checker) runMonitor(ms *monitorState) {
 	}
 }
 
-func (c *Checker) performCheck(m *storage.Monitor) {
+// CheckNow triggers an immediate check of every active monitor. Checks run in
+// their own goroutines so this returns promptly.
+func (c *Checker) CheckNow() {
+	c.mu.RLock()
+	triggers := make([]chan struct{}, 0, len(c.monitors))
+	for _, ms := range c.monitors {
+		triggers = append(triggers, ms.trigger)
+	}
+	c.mu.RUnlock()
+
+	for _, tr := range triggers {
+		select {
+		case tr <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// Reload re-syncs the running monitors with the database: it stops monitors
+// that were removed or disabled and (re)starts the ones that are enabled.
+func (c *Checker) Reload() error {
+	monitors, err := c.db.ListMonitors()
+	if err != nil {
+		return err
+	}
+
+	enabled := make(map[uint]bool)
+	for _, m := range monitors {
+		if m.Enabled {
+			enabled[m.ID] = true
+		}
+	}
+
+	c.mu.RLock()
+	existing := make([]uint, 0, len(c.monitors))
+	for id := range c.monitors {
+		existing = append(existing, id)
+	}
+	c.mu.RUnlock()
+
+	for _, id := range existing {
+		if !enabled[id] {
+			c.RemoveMonitor(id)
+		}
+	}
+
+	for _, m := range monitors {
+		if !m.Enabled {
+			continue
+		}
+		monitor := m
+		c.startMonitor(&monitor)
+	}
+
+	return nil
+}
+
+// Probe performs a single HTTP check against a monitor and returns the result
+// without persisting anything. It is safe to call from anywhere.
+func Probe(client *http.Client, m *storage.Monitor) storage.CheckResult {
 	startTime := time.Now()
+
+	result := storage.CheckResult{
+		MonitorID: m.ID,
+		CreatedAt: startTime,
+	}
 
 	timeout := time.Duration(m.Timeout) * time.Second
 	if timeout == 0 {
@@ -134,25 +311,26 @@ func (c *Checker) performCheck(m *storage.Monitor) {
 
 	req, err := http.NewRequestWithContext(ctx, "GET", m.URL, nil)
 	if err != nil {
-		c.recordFailure(m, 0, err)
-		return
+		result.ErrorMessage = err.Error()
+		return result
 	}
 
 	req.Header.Set("User-Agent", "Statping/1.0")
 
-	resp, err := c.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		c.recordFailure(m, 0, err)
-		return
+		result.ErrorMessage = err.Error()
+		return result
 	}
 	defer resp.Body.Close()
 
-	responseTime := time.Since(startTime).Milliseconds()
+	result.ResponseTime = time.Since(startTime).Milliseconds()
+	result.StatusCode = resp.StatusCode
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.recordFailure(m, resp.StatusCode, fmt.Errorf("failed to read response body: %w", err))
-		return
+		result.ErrorMessage = fmt.Sprintf("failed to read response body: %v", err)
+		return result
 	}
 
 	expectedCodes := storage.ParseExpectedCodes(m.ExpectedCodes)
@@ -165,8 +343,8 @@ func (c *Checker) performCheck(m *storage.Monitor) {
 	}
 
 	if !statusOK {
-		c.recordFailure(m, resp.StatusCode, fmt.Errorf("unexpected status code: got %d, expected one of %v", resp.StatusCode, expectedCodes))
-		return
+		result.ErrorMessage = fmt.Sprintf("unexpected status code: got %d, expected one of %v", resp.StatusCode, expectedCodes)
+		return result
 	}
 
 	keywords := storage.ParseKeywords(m.Keywords)
@@ -176,66 +354,80 @@ func (c *Checker) performCheck(m *storage.Monitor) {
 			pattern := "(?i)" + regexp.QuoteMeta(keyword)
 			matched, err := regexp.MatchString(pattern, bodyStr)
 			if err != nil || !matched {
-				c.recordFailure(m, resp.StatusCode, fmt.Errorf("keyword '%s' not found in response", keyword))
-				return
+				result.ErrorMessage = fmt.Sprintf("keyword '%s' not found in response", keyword)
+				return result
 			}
 		}
 	}
 
-	c.recordSuccess(m, resp.StatusCode, responseTime)
+	result.Success = true
+	return result
 }
 
-func (c *Checker) recordSuccess(m *storage.Monitor, statusCode int, responseTime int64) {
-	now := time.Now()
-
-	result := &storage.CheckResult{
-		MonitorID:    m.ID,
-		StatusCode:   statusCode,
-		ResponseTime: responseTime,
-		Success:      true,
-		CreatedAt:    now,
+func (c *Checker) performCheck(m *storage.Monitor) {
+	result := Probe(c.client, m)
+	if result.Success {
+		c.recordSuccess(m, &result)
+	} else {
+		c.recordFailure(m, &result)
 	}
-	c.db.CreateCheckResult(result)
+	c.notifyUpdate()
+}
+
+func (c *Checker) recordSuccess(m *storage.Monitor, result *storage.CheckResult) {
+	now := result.CreatedAt
+
+	// A successful HTTP response proves the system is online.
+	c.setOnline(true)
+
+	logIfErr("create check result", c.db.CreateCheckResult(result))
 
 	wasDown := m.CurrentStatus == "down"
 	m.CurrentStatus = "up"
 	m.ConsecutiveFails = 0
 	m.LastCheckAt = &now
-	c.db.UpdateMonitor(m)
+	logIfErr("update monitor", c.db.UpdateMonitor(m))
 
 	if wasDown {
 		incident, err := c.db.GetActiveIncident(m.ID)
 		if err == nil && incident != nil {
-			c.db.ResolveIncident(incident.ID)
+			logIfErr("resolve incident", c.db.ResolveIncident(incident.ID))
 
 			if !incident.RecoveryNotified {
 				c.notifier.NotifyRecovery(m.Name, m.URL)
 				incident.RecoveryNotified = true
-				c.db.UpdateIncident(incident)
+				logIfErr("update incident", c.db.UpdateIncident(incident))
 			}
 		}
 	}
 }
 
-func (c *Checker) recordFailure(m *storage.Monitor, statusCode int, err error) {
-	now := time.Now()
-
-	errorMsg := err.Error()
-
-	result := &storage.CheckResult{
-		MonitorID:    m.ID,
-		StatusCode:   statusCode,
-		ResponseTime: 0,
-		Success:      false,
-		ErrorMessage: errorMsg,
-		CreatedAt:    now,
+func (c *Checker) recordFailure(m *storage.Monitor, result *storage.CheckResult) {
+	// Don't blame the site if the whole system is offline. If we already know
+	// we're offline, skip immediately; otherwise confirm with an on-demand probe
+	// so a connectivity drop is detected faster than the periodic watcher.
+	if !c.Online() {
+		return
 	}
-	c.db.CreateCheckResult(result)
+	if !IsOnline(time.Duration(config.ConnectivityTimeout) * time.Second) {
+		c.setOnline(false)
+		return
+	}
+
+	now := result.CreatedAt
+	errorMsg := result.ErrorMessage
+
+	logIfErr("create check result", c.db.CreateCheckResult(result))
 
 	m.ConsecutiveFails++
 	m.LastCheckAt = &now
 
-	if m.ConsecutiveFails >= config.DefaultMaxFailures {
+	maxFailures := m.MaxFailures
+	if maxFailures < 1 {
+		maxFailures = config.DefaultMaxFailures
+	}
+
+	if m.ConsecutiveFails >= maxFailures {
 		wasUp := m.CurrentStatus != "down"
 		m.CurrentStatus = "down"
 
@@ -245,7 +437,7 @@ func (c *Checker) recordFailure(m *storage.Monitor, statusCode int, err error) {
 				StartedAt:    now,
 				ErrorMessage: errorMsg,
 			}
-			c.db.CreateIncident(incident)
+			logIfErr("create incident", c.db.CreateIncident(incident))
 
 			c.mu.Lock()
 			ms := c.monitors[m.ID]
@@ -260,7 +452,7 @@ func (c *Checker) recordFailure(m *storage.Monitor, statusCode int, err error) {
 			incident, err := c.db.GetActiveIncident(m.ID)
 			if err == nil && incident != nil {
 				incident.ErrorMessage = errorMsg
-				c.db.UpdateIncident(incident)
+				logIfErr("update incident", c.db.UpdateIncident(incident))
 
 				c.mu.Lock()
 				ms := c.monitors[m.ID]
@@ -273,7 +465,7 @@ func (c *Checker) recordFailure(m *storage.Monitor, statusCode int, err error) {
 		}
 	}
 
-	c.db.UpdateMonitor(m)
+	logIfErr("update monitor", c.db.UpdateMonitor(m))
 }
 
 func (c *Checker) AddMonitor(m *storage.Monitor) {

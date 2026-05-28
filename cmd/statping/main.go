@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"text/template"
 
@@ -59,6 +61,34 @@ var removeCmd = &cobra.Command{
 	Run:   runRemove,
 }
 
+var editCmd = &cobra.Command{
+	Use:   "edit [id]",
+	Short: "Edit an existing monitor (only provided flags are changed)",
+	Args:  cobra.ExactArgs(1),
+	Run:   runEdit,
+}
+
+var pauseCmd = &cobra.Command{
+	Use:   "pause [id]",
+	Short: "Pause a monitor (disable checks)",
+	Args:  cobra.ExactArgs(1),
+	Run:   runPause,
+}
+
+var resumeCmd = &cobra.Command{
+	Use:   "resume [id]",
+	Short: "Resume a paused monitor (enable checks)",
+	Args:  cobra.ExactArgs(1),
+	Run:   runResume,
+}
+
+var checkCmd = &cobra.Command{
+	Use:   "check [id]",
+	Short: "Run a one-off check now and print the result",
+	Args:  cobra.ExactArgs(1),
+	Run:   runCheck,
+}
+
 var dashboardCmd = &cobra.Command{
 	Use:   "dashboard",
 	Short: "Show real-time dashboard with response time graphs",
@@ -93,6 +123,7 @@ var (
 	addName          string
 	addInterval      int
 	addTimeout       int
+	addMaxFailures   int
 	addExpectedCodes string
 	addKeywords      string
 )
@@ -103,6 +134,10 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(removeCmd)
+	rootCmd.AddCommand(editCmd)
+	rootCmd.AddCommand(pauseCmd)
+	rootCmd.AddCommand(resumeCmd)
+	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(dashboardCmd)
 	rootCmd.AddCommand(trayCmd)
 	rootCmd.AddCommand(enableCmd)
@@ -112,8 +147,17 @@ func init() {
 	addCmd.Flags().StringVarP(&addName, "name", "n", "", "Monitor name")
 	addCmd.Flags().IntVarP(&addInterval, "interval", "i", config.DefaultCheckInterval, "Check interval in seconds")
 	addCmd.Flags().IntVarP(&addTimeout, "timeout", "t", config.DefaultTimeout, "Request timeout in seconds")
+	addCmd.Flags().IntVarP(&addMaxFailures, "failures", "f", config.DefaultMaxFailures, "Consecutive failures before marking down")
 	addCmd.Flags().StringVarP(&addExpectedCodes, "codes", "c", "200", "Expected status codes (comma-separated)")
 	addCmd.Flags().StringVarP(&addKeywords, "keywords", "k", "", "Keywords to find in response (comma-separated)")
+
+	editCmd.Flags().StringP("name", "n", "", "Monitor name")
+	editCmd.Flags().StringP("url", "u", "", "Monitor URL")
+	editCmd.Flags().IntP("interval", "i", 0, "Check interval in seconds")
+	editCmd.Flags().IntP("timeout", "t", 0, "Request timeout in seconds")
+	editCmd.Flags().IntP("failures", "f", 0, "Consecutive failures before marking down")
+	editCmd.Flags().StringP("codes", "c", "", "Expected status codes (comma-separated)")
+	editCmd.Flags().StringP("keywords", "k", "", "Keywords to find in response (comma-separated)")
 }
 
 func main() {
@@ -121,6 +165,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func parseID(arg string) (uint, error) {
+	id, err := strconv.ParseUint(arg, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("must be a positive number")
+	}
+	if id == 0 {
+		return 0, fmt.Errorf("must be greater than zero")
+	}
+	return uint(id), nil
 }
 
 func initDatabase() (*storage.Database, error) {
@@ -219,6 +274,7 @@ func runAdd(cmd *cobra.Command, args []string) {
 		URL:           url,
 		CheckInterval: addInterval,
 		Timeout:       addTimeout,
+		MaxFailures:   addMaxFailures,
 		ExpectedCodes: addExpectedCodes,
 		Keywords:      addKeywords,
 		Enabled:       true,
@@ -267,14 +323,144 @@ func runRemove(cmd *cobra.Command, args []string) {
 	}
 	defer db.Close()
 
-	var id uint
-	fmt.Sscanf(args[0], "%d", &id)
+	id, err := parseID(args[0])
+	if err != nil {
+		log.Fatalf("Invalid monitor ID %q: %v", args[0], err)
+	}
 
 	if err := db.DeleteMonitor(id); err != nil {
 		log.Fatalf("Failed to remove monitor: %v", err)
 	}
 
 	fmt.Printf("Monitor %d removed successfully\n", id)
+}
+
+func runEdit(cmd *cobra.Command, args []string) {
+	db, err := initDatabase()
+	if err != nil {
+		log.Fatalf("Database initialization failed: %v", err)
+	}
+	defer db.Close()
+
+	id, err := parseID(args[0])
+	if err != nil {
+		log.Fatalf("Invalid monitor ID %q: %v", args[0], err)
+	}
+
+	monitor, err := db.GetMonitor(id)
+	if err != nil {
+		log.Fatalf("Monitor %d not found: %v", id, err)
+	}
+
+	flags := cmd.Flags()
+	changed := false
+	if flags.Changed("name") {
+		monitor.Name, _ = flags.GetString("name")
+		changed = true
+	}
+	if flags.Changed("url") {
+		monitor.URL, _ = flags.GetString("url")
+		changed = true
+	}
+	if flags.Changed("interval") {
+		monitor.CheckInterval, _ = flags.GetInt("interval")
+		changed = true
+	}
+	if flags.Changed("timeout") {
+		monitor.Timeout, _ = flags.GetInt("timeout")
+		changed = true
+	}
+	if flags.Changed("failures") {
+		monitor.MaxFailures, _ = flags.GetInt("failures")
+		changed = true
+	}
+	if flags.Changed("codes") {
+		monitor.ExpectedCodes, _ = flags.GetString("codes")
+		changed = true
+	}
+	if flags.Changed("keywords") {
+		monitor.Keywords, _ = flags.GetString("keywords")
+		changed = true
+	}
+
+	if !changed {
+		fmt.Println("Nothing to update. Pass at least one flag (e.g. --name, --interval).")
+		return
+	}
+
+	if err := db.UpdateMonitor(monitor); err != nil {
+		log.Fatalf("Failed to update monitor: %v", err)
+	}
+
+	fmt.Printf("Monitor %d updated successfully\n", id)
+}
+
+func runPause(cmd *cobra.Command, args []string) {
+	setEnabled(args[0], false)
+}
+
+func runResume(cmd *cobra.Command, args []string) {
+	setEnabled(args[0], true)
+}
+
+func setEnabled(arg string, enabled bool) {
+	db, err := initDatabase()
+	if err != nil {
+		log.Fatalf("Database initialization failed: %v", err)
+	}
+	defer db.Close()
+
+	id, err := parseID(arg)
+	if err != nil {
+		log.Fatalf("Invalid monitor ID %q: %v", arg, err)
+	}
+
+	if _, err := db.GetMonitor(id); err != nil {
+		log.Fatalf("Monitor %d not found: %v", id, err)
+	}
+
+	if err := db.ToggleMonitor(id, enabled); err != nil {
+		log.Fatalf("Failed to update monitor: %v", err)
+	}
+
+	if enabled {
+		fmt.Printf("Monitor %d resumed\n", id)
+	} else {
+		fmt.Printf("Monitor %d paused\n", id)
+	}
+}
+
+func runCheck(cmd *cobra.Command, args []string) {
+	db, err := initDatabase()
+	if err != nil {
+		log.Fatalf("Database initialization failed: %v", err)
+	}
+	defer db.Close()
+
+	id, err := parseID(args[0])
+	if err != nil {
+		log.Fatalf("Invalid monitor ID %q: %v", args[0], err)
+	}
+
+	monitor, err := db.GetMonitor(id)
+	if err != nil {
+		log.Fatalf("Monitor %d not found: %v", id, err)
+	}
+
+	fmt.Printf("Checking %s (%s)...\n", monitor.Name, monitor.URL)
+
+	result := checker.Probe(&http.Client{}, monitor)
+	if result.Success {
+		fmt.Printf("✅ UP - HTTP %d in %dms\n", result.StatusCode, result.ResponseTime)
+		return
+	}
+
+	if result.StatusCode > 0 {
+		fmt.Printf("❌ DOWN - HTTP %d: %s\n", result.StatusCode, result.ErrorMessage)
+	} else {
+		fmt.Printf("❌ DOWN - %s\n", result.ErrorMessage)
+	}
+	os.Exit(1)
 }
 
 func runDashboard(cmd *cobra.Command, args []string) {

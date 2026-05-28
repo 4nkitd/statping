@@ -26,12 +26,13 @@ const (
 	inputURL
 	inputInterval
 	inputTimeout
+	inputMaxFailures
 	inputExpectedCodes
 	inputKeywords
 )
 
 func newFormModel(db *storage.Database) formModel {
-	inputs := make([]textinput.Model, 6)
+	inputs := make([]textinput.Model, 7)
 
 	inputs[inputName] = textinput.New()
 	inputs[inputName].Placeholder = "My Website"
@@ -53,6 +54,11 @@ func newFormModel(db *storage.Database) formModel {
 	inputs[inputTimeout].Placeholder = "10"
 	inputs[inputTimeout].CharLimit = 3
 	inputs[inputTimeout].Width = 20
+
+	inputs[inputMaxFailures] = textinput.New()
+	inputs[inputMaxFailures].Placeholder = "3"
+	inputs[inputMaxFailures].CharLimit = 3
+	inputs[inputMaxFailures].Width = 20
 
 	inputs[inputExpectedCodes] = textinput.New()
 	inputs[inputExpectedCodes].Placeholder = "200,201,204"
@@ -80,6 +86,7 @@ func (m *formModel) reset() {
 	m.inputs[inputURL].SetValue("")
 	m.inputs[inputInterval].SetValue(fmt.Sprintf("%d", config.DefaultCheckInterval))
 	m.inputs[inputTimeout].SetValue(fmt.Sprintf("%d", config.DefaultTimeout))
+	m.inputs[inputMaxFailures].SetValue(fmt.Sprintf("%d", config.DefaultMaxFailures))
 	m.inputs[inputExpectedCodes].SetValue("200")
 	m.inputs[inputKeywords].SetValue("")
 
@@ -99,6 +106,11 @@ func (m *formModel) setMonitor(monitor *storage.Monitor) {
 	m.inputs[inputURL].SetValue(monitor.URL)
 	m.inputs[inputInterval].SetValue(fmt.Sprintf("%d", monitor.CheckInterval))
 	m.inputs[inputTimeout].SetValue(fmt.Sprintf("%d", monitor.Timeout))
+	maxFailures := monitor.MaxFailures
+	if maxFailures < 1 {
+		maxFailures = config.DefaultMaxFailures
+	}
+	m.inputs[inputMaxFailures].SetValue(fmt.Sprintf("%d", maxFailures))
 	m.inputs[inputExpectedCodes].SetValue(monitor.ExpectedCodes)
 	m.inputs[inputKeywords].SetValue(monitor.Keywords)
 
@@ -188,6 +200,11 @@ func (m *formModel) save() tea.Cmd {
 		timeout = config.DefaultTimeout
 	}
 
+	maxFailures, err := strconv.Atoi(m.inputs[inputMaxFailures].Value())
+	if err != nil || maxFailures < 1 {
+		maxFailures = config.DefaultMaxFailures
+	}
+
 	expectedCodes := strings.TrimSpace(m.inputs[inputExpectedCodes].Value())
 	if expectedCodes == "" {
 		expectedCodes = "200"
@@ -200,6 +217,7 @@ func (m *formModel) save() tea.Cmd {
 		m.monitor.URL = url
 		m.monitor.CheckInterval = interval
 		m.monitor.Timeout = timeout
+		m.monitor.MaxFailures = maxFailures
 		m.monitor.ExpectedCodes = expectedCodes
 		m.monitor.Keywords = keywords
 
@@ -213,6 +231,7 @@ func (m *formModel) save() tea.Cmd {
 			URL:           url,
 			CheckInterval: interval,
 			Timeout:       timeout,
+			MaxFailures:   maxFailures,
 			ExpectedCodes: expectedCodes,
 			Keywords:      keywords,
 			Enabled:       true,
@@ -243,6 +262,7 @@ func (m formModel) View() string {
 		"URL:",
 		"Check Interval (seconds):",
 		"Timeout (seconds):",
+		"Failures Before Down:",
 		"Expected Status Codes:",
 		"Keywords (comma-separated):",
 	}

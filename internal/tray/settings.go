@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ankityadav/statping/internal/config"
 	"github.com/ankityadav/statping/internal/storage"
 )
 
@@ -22,16 +23,25 @@ var templatesFS embed.FS
 type SettingsServer struct {
 	db       *storage.Database
 	onUpdate func()
+	onlineFn func() bool
 	server   *http.Server
 	port     int
 	mu       sync.Mutex
 }
 
-func NewSettingsWindow(db *storage.Database, onUpdate func()) *SettingsServer {
+func NewSettingsWindow(db *storage.Database, onUpdate func(), onlineFn func() bool) *SettingsServer {
 	return &SettingsServer{
 		db:       db,
 		onUpdate: onUpdate,
+		onlineFn: onlineFn,
 	}
+}
+
+func (s *SettingsServer) online() bool {
+	if s.onlineFn == nil {
+		return true
+	}
+	return s.onlineFn()
 }
 
 func (s *SettingsServer) Show() {
@@ -49,8 +59,11 @@ func (s *SettingsServer) Show() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/site/", s.handleSiteDetail)
+	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/monitors", s.handleMonitors)
 	mux.HandleFunc("/api/monitor/add", s.handleAddMonitor)
+	mux.HandleFunc("/api/monitor/get", s.handleGetMonitor)
+	mux.HandleFunc("/api/monitor/edit", s.handleEditMonitor)
 	mux.HandleFunc("/api/monitor/delete", s.handleDeleteMonitor)
 	mux.HandleFunc("/api/monitor/toggle", s.handleToggleMonitor)
 	mux.HandleFunc("/api/monitor/stats", s.handleMonitorStats)
@@ -121,6 +134,7 @@ func (s *SettingsServer) handleAddMonitor(w http.ResponseWriter, r *http.Request
 		URL           string `json:"url"`
 		Interval      int    `json:"interval"`
 		Timeout       int    `json:"timeout"`
+		MaxFailures   int    `json:"max_failures"`
 		ExpectedCodes string `json:"expected_codes"`
 		Keywords      string `json:"keywords"`
 	}
@@ -150,6 +164,11 @@ func (s *SettingsServer) handleAddMonitor(w http.ResponseWriter, r *http.Request
 		timeout = 10
 	}
 
+	maxFailures := req.MaxFailures
+	if maxFailures <= 0 {
+		maxFailures = config.DefaultMaxFailures
+	}
+
 	codes := req.ExpectedCodes
 	if codes == "" {
 		codes = "200"
@@ -160,6 +179,7 @@ func (s *SettingsServer) handleAddMonitor(w http.ResponseWriter, r *http.Request
 		URL:           req.URL,
 		CheckInterval: interval,
 		Timeout:       timeout,
+		MaxFailures:   maxFailures,
 		ExpectedCodes: codes,
 		Keywords:      req.Keywords,
 		Enabled:       true,
@@ -176,6 +196,163 @@ func (s *SettingsServer) handleAddMonitor(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "id": monitor.ID})
+}
+
+func (s *SettingsServer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	monitors, err := s.db.ListMonitors()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	since := time.Now().Add(-24 * time.Hour)
+
+	type monStatus struct {
+		ID           uint    `json:"id"`
+		Status       string  `json:"status"`
+		Enabled      bool    `json:"enabled"`
+		Uptime       float64 `json:"uptime"`
+		ResponseTime int64   `json:"response_time"`
+		LastCheck    string  `json:"last_check"`
+	}
+
+	var up, down, unknown int
+	list := make([]monStatus, 0, len(monitors))
+	for _, m := range monitors {
+		if m.Enabled {
+			switch m.CurrentStatus {
+			case "up":
+				up++
+			case "down":
+				down++
+			default:
+				unknown++
+			}
+		}
+
+		uptime := 0.0
+		total, successful, _, statErr := s.db.GetCheckResultStats(m.ID, since)
+		if statErr == nil && total > 0 {
+			uptime = float64(successful) / float64(total) * 100
+		}
+
+		var rt int64
+		if results, rErr := s.db.GetRecentCheckResults(m.ID, 1); rErr == nil && len(results) > 0 && results[0].Success {
+			rt = results[0].ResponseTime
+		}
+
+		lastCheck := ""
+		if m.LastCheckAt != nil {
+			lastCheck = m.LastCheckAt.Format(time.RFC3339)
+		}
+
+		list = append(list, monStatus{
+			ID:           m.ID,
+			Status:       m.CurrentStatus,
+			Enabled:      m.Enabled,
+			Uptime:       uptime,
+			ResponseTime: rt,
+			LastCheck:    lastCheck,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"online":   s.online(),
+		"up":       up,
+		"down":     down,
+		"unknown":  unknown,
+		"monitors": list,
+	})
+}
+
+func (s *SettingsServer) handleGetMonitor(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid ID", 400)
+		return
+	}
+
+	monitor, err := s.db.GetMonitor(uint(id))
+	if err != nil {
+		http.Error(w, "Monitor not found", 404)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(monitor)
+}
+
+func (s *SettingsServer) handleEditMonitor(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	var req struct {
+		ID            uint   `json:"id"`
+		Name          string `json:"name"`
+		URL           string `json:"url"`
+		Interval      int    `json:"interval"`
+		Timeout       int    `json:"timeout"`
+		MaxFailures   int    `json:"max_failures"`
+		ExpectedCodes string `json:"expected_codes"`
+		Keywords      string `json:"keywords"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	monitor, err := s.db.GetMonitor(req.ID)
+	if err != nil {
+		http.Error(w, "Monitor not found", 404)
+		return
+	}
+
+	if req.URL == "" {
+		http.Error(w, "URL is required", 400)
+		return
+	}
+
+	name := req.Name
+	if name == "" {
+		name = req.URL
+	}
+	if req.Interval <= 0 {
+		req.Interval = 60
+	}
+	if req.Timeout <= 0 {
+		req.Timeout = 10
+	}
+	if req.MaxFailures <= 0 {
+		req.MaxFailures = config.DefaultMaxFailures
+	}
+	if req.ExpectedCodes == "" {
+		req.ExpectedCodes = "200"
+	}
+
+	monitor.Name = name
+	monitor.URL = req.URL
+	monitor.CheckInterval = req.Interval
+	monitor.Timeout = req.Timeout
+	monitor.MaxFailures = req.MaxFailures
+	monitor.ExpectedCodes = req.ExpectedCodes
+	monitor.Keywords = req.Keywords
+
+	if err := s.db.UpdateMonitor(monitor); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if s.onUpdate != nil {
+		s.onUpdate()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 func (s *SettingsServer) handleDeleteMonitor(w http.ResponseWriter, r *http.Request) {

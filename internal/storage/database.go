@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,6 +137,11 @@ func (d *Database) GetCheckResultStats(monitorID uint, since time.Time) (total, 
 	return
 }
 
+func (d *Database) PruneCheckResults(before time.Time) (int64, error) {
+	res := d.db.Where("created_at < ?", before).Delete(&CheckResult{})
+	return res.RowsAffected, res.Error
+}
+
 func (d *Database) CreateIncident(i *Incident) error {
 	return d.db.Create(i).Error
 }
@@ -184,9 +190,8 @@ func ParseExpectedCodes(codes string) []int {
 	result := make([]int, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
-		var code int
-		fmt.Sscanf(p, "%d", &code)
-		if code > 0 {
+		code, err := strconv.Atoi(p)
+		if err == nil && code > 0 {
 			result = append(result, code)
 		}
 	}
