@@ -19,131 +19,100 @@ jobs:
             suffix: darwin-amd64
           - goarch: arm64
             suffix: darwin-arm64
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
+          go-version: 'stable'
       - name: Build
         env:
           GOOS: darwin
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
-        run: |
-          go build -ldflags="-s -w" -o statping-${{ matrix.suffix }} ./cmd/statping
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        run: go build -ldflags="-s -w" -o statping-${{ matrix.suffix }} ./cmd/statping
+      - uses: actions/upload-artifact@v4
         with:
           name: statping-${{ matrix.suffix }}
           path: statping-${{ matrix.suffix }}
 
   build-linux:
-    name: Build Linux
+    name: Build Linux (amd64)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
+          go-version: 'stable'
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc libgtk-3-dev libayatana-appindicator3-dev
-
       - name: Build amd64
         env:
           GOOS: linux
           GOARCH: amd64
           CGO_ENABLED: 1
-        run: |
-          go build -ldflags="-s -w" -o statping-linux-amd64 ./cmd/statping
-
-      - name: Upload amd64 artifact
-        uses: actions/upload-artifact@v4
+        run: go build -ldflags="-s -w" -o statping-linux-amd64 ./cmd/statping
+      - uses: actions/upload-artifact@v4
         with:
           name: statping-linux-amd64
           path: statping-linux-amd64
 
   build-windows:
-    name: Build Windows
+    name: Build Windows (amd64)
     runs-on: windows-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: amd64
-            suffix: windows-amd64
-          - goarch: arm64
-            suffix: windows-arm64
-
+    continue-on-error: true
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
+          go-version: 'stable'
       - name: Build
         env:
           GOOS: windows
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: amd64
           CGO_ENABLED: 1
-        run: |
-          go build -ldflags="-s -w -H windowsgui" -o statping-${{ matrix.suffix }}.exe ./cmd/statping
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        run: go build -ldflags="-s -w -H windowsgui" -o statping-windows-amd64.exe ./cmd/statping
+      - uses: actions/upload-artifact@v4
         with:
-          name: statping-${{ matrix.suffix }}
-          path: statping-${{ matrix.suffix }}.exe
+          name: statping-windows-amd64
+          path: statping-windows-amd64.exe
 
   release:
-    name: Create Release
+    name: Create Release & Update Formula
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout master
         uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
-      - name: Prepare release assets
+      - name: Package assets
         run: |
           mkdir -p release
           for dir in ./artifacts/*/; do
             cp "$dir"* ./release/ 2>/dev/null || true
           done
           cd release
-          # Compress Unix binaries
           for f in statping-darwin-* statping-linux-*; do
-            if [ -f "$f" ]; then
+            if [ -f "$f" ] && [[ "$f" != *.tar.gz ]]; then
               chmod +x "$f"
-              tar -czvf "${f}.tar.gz" "$f"
+              tar -czf "${f}.tar.gz" "$f"
             fi
           done
-          # Compress Windows binaries
           for f in statping-windows-*.exe; do
-            if [ -f "$f" ]; then
-              zip "${f%.exe}.zip" "$f"
-            fi
+            [ -f "$f" ] && zip "${f%.exe}.zip" "$f" || true
           done
+          ls -la
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -155,36 +124,57 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  update-homebrew:
-    name: Update Homebrew Formula
-    needs: [release]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Calculate SHA256 checksums
-        id: checksums
-        run: |
-          cd artifacts
-          echo "darwin_amd64_sha=$(sha256sum statping-darwin-amd64/statping-darwin-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "darwin_arm64_sha=$(sha256sum statping-darwin-arm64/statping-darwin-arm64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "linux_amd64_sha=$(sha256sum statping-linux-amd64/statping-linux-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-
-      - name: Update Homebrew formula
+      - name: Regenerate Homebrew formula from published assets
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/statping.rb
-          sed -i "s/PLACEHOLDER_DARWIN_AMD64_SHA256/${{ steps.checksums.outputs.darwin_amd64_sha }}/" Formula/statping.rb
-          sed -i "s/PLACEHOLDER_DARWIN_ARM64_SHA256/${{ steps.checksums.outputs.darwin_arm64_sha }}/" Formula/statping.rb
-          sed -i "s/PLACEHOLDER_LINUX_AMD64_SHA256/${{ steps.checksums.outputs.linux_amd64_sha }}/" Formula/statping.rb
-          # For Linux ARM64, use amd64 as fallback if not built
-          sed -i "s/PLACEHOLDER_LINUX_ARM64_SHA256/${{ steps.checksums.outputs.linux_amd64_sha }}/" Formula/statping.rb
+          DARWIN_ARM64_SHA=$(sha256sum release/statping-darwin-arm64.tar.gz | cut -d' ' -f1)
+          DARWIN_AMD64_SHA=$(sha256sum release/statping-darwin-amd64.tar.gz | cut -d' ' -f1)
+          LINUX_AMD64_SHA=$(sha256sum release/statping-linux-amd64.tar.gz | cut -d' ' -f1)
+
+          cat > Formula/statping.rb <<EOF
+          class Statping < Formula
+            desc "Beautiful terminal-based website monitoring tool with notifications"
+            homepage "https://github.com/4nkitd/statping"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+              else
+                url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-linux-amd64.tar.gz"
+              sha256 "${LINUX_AMD64_SHA}"
+            end
+
+            def install
+              bin.install Dir["statping-*"].first => "statping"
+            end
+
+            def caveats
+              <<~CAVEATS
+                To start statping in the system tray:
+                  statping tray
+
+                To run the TUI dashboard:
+                  statping start
+
+                To enable auto-start on login:
+                  statping enable
+              CAVEATS
+            end
+
+            test do
+              assert_match "statping", shell_output("#{bin}/statping --help")
+            end
+          end
+          EOF
 
       - name: Commit updated formula
         run: |
@@ -192,6 +182,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/statping.rb
           git commit -m "chore: update Homebrew formula for ${GITHUB_REF#refs/tags/}" || echo "No changes to commit"
-          git push
+          git push origin HEAD:master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

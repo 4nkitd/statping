@@ -1,27 +1,22 @@
 class Statping < Formula
   desc "Beautiful terminal-based website monitoring tool with notifications"
   homepage "https://github.com/4nkitd/statping"
-  version "1.1.2"
+  version "1.2.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-arm64.tar.gz"
-      sha256 "9c765ea8507b865b4198677b76f266b7d566d384416e6de948b252dc8c69ff88"
+      sha256 "PLACEHOLDER_DARWIN_ARM64_SHA256"
     else
       url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-darwin-amd64.tar.gz"
-      sha256 "ca689e570877c9eee8aebad649550a7d4d68c30a1a9c7dde9ec0dacd74f2b2ec"
+      sha256 "PLACEHOLDER_DARWIN_AMD64_SHA256"
     end
   end
 
   on_linux do
-    if Hardware::CPU.arm?
-      url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-linux-arm64.tar.gz"
-      sha256 "PLACEHOLDER_LINUX_ARM64_SHA256"
-    else
-      url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-linux-amd64.tar.gz"
-      sha256 "PLACEHOLDER_LINUX_AMD64_SHA256"
-    end
+    url "https://github.com/4nkitd/statping/releases/download/v#{version}/statping-linux-amd64.tar.gz"
+    sha256 "PLACEHOLDER_LINUX_AMD64_SHA256"
   end
 
   def install
